@@ -58,9 +58,24 @@ const propertySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Fast queries for the listing page
+// ── Indexes ────────────────────────────────────────────────────────────────────
+// Compound index covers: isActive + city/type filters + price sort
 propertySchema.index({ isActive: 1, city: 1, type: 1, price: 1 });
+
+// Featured listings query
 propertySchema.index({ isActive: 1, featured: 1 });
+
+// Location regex queries (used in getAllProperties + getPropertyCounts)
+propertySchema.index({ isActive: 1, location: 1 });
+
+// Default sort by newest — critical for listing page speed
+propertySchema.index({ isActive: 1, createdAt: -1 });
+
+// Text index for the search param (replaces slow regex on title/location/city/developer)
+propertySchema.index(
+  { title: 'text', location: 'text', city: 'text', developer: 'text' },
+  { weights: { title: 10, location: 5, city: 3, developer: 2 }, name: 'property_text_search' }
+);
 
 const Property = mongoose.model('Property', propertySchema);
 export default Property;

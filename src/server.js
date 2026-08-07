@@ -26,8 +26,8 @@ const isProd = process.env.NODE_ENV === 'production';
 connectDB();
 
 // ── Compression ────────────────────────────────────────────────────────────────
-// Compress all responses with gzip — reduces payload by ~70%
-app.use(compression());
+// Only compress responses > 1KB (compressing tiny responses wastes CPU)
+app.use(compression({ threshold: 1024 }));
 
 // ── Security Headers ───────────────────────────────────────────────────────────
 app.use(
@@ -35,7 +35,7 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc:     ["'self'"],
-        scriptSrc:      ["'self'", "'unsafe-inline'"], // unsafe-inline required for theme init script
+        scriptSrc:      ["'self'", "'unsafe-inline'"],
         styleSrc:       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://unpkg.com'],
         fontSrc:        ["'self'", 'https://fonts.gstatic.com', 'data:'],
         imgSrc:         ["'self'", 'data:', 'https:', 'blob:'],
@@ -45,15 +45,14 @@ app.use(
         upgradeInsecureRequests: isProd ? [] : null,
       },
     },
-    crossOriginEmbedderPolicy: false, // Required for map tiles and external media
+    crossOriginEmbedderPolicy: false,
   })
 );
 
 // ── Logging ────────────────────────────────────────────────────────────────────
-// Use compact 'dev' format locally, structured 'combined' in production
 app.use(morgan(isProd ? 'combined' : 'dev'));
 
-// ── CORS — credentials: true so cookies are sent cross-origin ─────────────────
+// ── CORS ───────────────────────────────────────────────────────────────────────
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
@@ -65,34 +64,25 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, Postman)
     if (!origin) return callback(null, true);
-
-    // Exact match
     if (allowedOrigins.includes(origin)) return callback(null, true);
-
-    // Match CLIENT_URL from .env (handles custom prod domains)
     if (process.env.CLIENT_URL) {
       const clean = process.env.CLIENT_URL.replace(/\/$/, '');
       if (origin === clean) return callback(null, true);
     }
-
-    // In dev only: allow any Vercel preview subdomain
     if (!isProd && origin.endsWith('.vercel.app')) return callback(null, true);
-
     return callback(null, false);
   },
-  credentials: true, // Required for cookies to be sent & received
+  credentials: true,
 }));
 
 // ── Body & Cookie Parsers ──────────────────────────────────────────────────────
-// 1MB limit prevents request-body DoS attacks
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
 
 // ── Base Route ─────────────────────────────────────────────────────────────────
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.json({ success: true, message: 'HyperRelestix API running 🚀' });
 });
 
@@ -106,7 +96,8 @@ app.use('/api/upload',     uploadRoutes);
 app.use('/api/partners',   partnerRoutes);
 
 // ── Health Check ───────────────────────────────────────────────────────────────
-app.get('/api/health', (req, res) => {
+// Ping this every 10 min from UptimeRobot to prevent Render free-tier sleep
+app.get('/api/health', (_req, res) => {
   res.json({ success: true, message: 'HyperRelestix API running 🚀', env: process.env.NODE_ENV });
 });
 
@@ -116,8 +107,7 @@ app.use((req, res) => {
 });
 
 // ── Global Error Handler ───────────────────────────────────────────────────────
-// Never expose raw error stacks in production responses
-app.use((err, req, res, next) => {
+app.use((err, _req, res, _next) => {
   const statusCode = err.statusCode || 500;
   if (!isProd) console.error(err.stack);
   res.status(statusCode).json({
