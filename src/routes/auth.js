@@ -6,6 +6,7 @@ import {
   createStaff, updateUserRole, deleteUser,
   getWishlist, toggleWishlist,
   sendOtp, verifyOtp, socialSignIn, googleCallback,
+  sendPhoneOtp, verifyPhoneOtp,
 } from '../controllers/authController.js';
 import { protect, adminOnly, managementPlus } from '../middleware/auth.js';
 
@@ -23,6 +24,8 @@ const authLimiter = rateLimit({
 router.post('/signin',           authLimiter, signIn);
 router.post('/otp/send',         authLimiter, sendOtp);
 router.post('/otp/verify',       authLimiter, verifyOtp);
+router.post('/otp/send-phone',    authLimiter, sendPhoneOtp);
+router.post('/otp/verify-phone',  authLimiter, verifyPhoneOtp);
 router.post('/social',           authLimiter, socialSignIn);
 router.post('/google/callback',  authLimiter, googleCallback);
 router.get('/me',                protect, getMe);

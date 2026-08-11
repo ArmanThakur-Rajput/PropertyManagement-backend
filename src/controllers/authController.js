@@ -607,3 +607,115 @@ export const deleteUser = async (req, res) => {
   }
 };
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/auth/otp/send-phone
+// ─────────────────────────────────────────────────────────────────────────────
+export const sendPhoneOtp = async (req, res) => {
+  try {
+    const { phone, name, email } = req.body;
+
+    if (!phone || !/^[6-9]\d{9}$/.test(phone)) {
+      return res.status(400).json({ success: false, message: 'Valid 10-digit Indian mobile number required.' });
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    console.info(`🔑 [PHONE OTP] Phone: +91${phone} | Code: ${code}`);
+
+    await Otp.findOneAndUpdate(
+      { target: phone },
+      { code, expiresAt },
+      { upsert: true, new: true }
+    );
+
+    if (email && /\S+@\S+\.\S+/.test(email)) {
+      await sendEmail({
+        to: email,
+        subject: `HyperRelestix Phone Verification: ${code}`,
+        text: `Your phone verification code is ${code}. Valid for 5 minutes.`,
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 25px; color: #071A2F; max-width: 500px; margin: 0 auto; border: 1px solid #E5C17D; border-radius: 16px; background-color: #FAF8F5;">
+            <h2 style="font-size: 22px; font-weight: bold; margin: 0 0 4px 0; color: #071A2F;">Hyper<span style="color: #D4AF37;">Relestix</span></h2>
+            <p style="font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin: 0 0 20px 0; color: #8C96A3;">Premium Real Estate</p>
+            <hr style="border: 0; border-top: 1px solid #E5E9F0; margin-bottom: 20px;" />
+            <h3 style="font-size: 15px;">Phone Verification Code</h3>
+            <p style="font-size: 13px; color: #4A5568;">Use this code to verify your number <strong>+91 ${phone}</strong>. Expires in 5 minutes.</p>
+            <div style="background-color: #071A2F; border-radius: 12px; text-align: center; font-size: 30px; font-weight: 800; letter-spacing: 6px; padding: 15px; margin: 20px 0; color: #E5C17D;">
+              ${code}
+            </div>
+            <p style="font-size: 11px; color: #718096;">If you didn't request this, you can safely ignore this email.</p>
+          </div>
+        `
+      });
+    }
+
+    return res.status(200).json({ success: true, message: 'OTP sent successfully!' });
+  } catch (error) {
+    console.error('sendPhoneOtp error:', error.message);
+    return res.status(500).json({ success: false, message: 'Something went wrong. Please try again.' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/auth/otp/verify-phone
+// ─────────────────────────────────────────────────────────────────────────────
+export const verifyPhoneOtp = async (req, res) => {
+  try {
+    const { phone, code, name, email } = req.body;
+
+    if (!phone || !code) {
+      return res.status(400).json({ success: false, message: 'Phone and OTP code are required.' });
+    }
+
+    const otpRecord = await Otp.findOne({ target: phone, code });
+    if (!otpRecord) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP. Please check and try again.' });
+    }
+
+    if (otpRecord.expiresAt < new Date()) {
+      await Otp.deleteOne({ _id: otpRecord._id });
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
+    }
+
+    await Otp.deleteOne({ _id: otpRecord._id });
+
+    let user = await User.findOne({ phone });
+    let isNew = false;
+
+    if (!user) {
+      const resolvedEmail = email && /\S+@\S+\.\S+/.test(email)
+        ? email.toLowerCase()
+        : `${phone}@phone.hyperrelestix.com`;
+
+      user = await User.create({
+        name: name || 'User',
+        phone,
+        email: resolvedEmail,
+        role: 'client',
+      });
+      isNew = true;
+    } else {
+      if (!user.isActive) {
+        return res.status(403).json({ success: false, message: 'Account deactivated. Please contact support.' });
+      }
+      if (name) user.name = name;
+      if (email && /\S+@\S+\.\S+/.test(email)) user.email = email.toLowerCase();
+      await user.save();
+    }
+
+    const token = setTokenCookie(res, user._id);
+
+    return res.status(isNew ? 201 : 200).json({
+      success: true,
+      message: isNew ? 'Account created successfully!' : 'Welcome back!',
+      isNew,
+      token,
+      user: userPayload(user),
+    });
+  } catch (error) {
+    console.error('verifyPhoneOtp error:', error.message);
+    return res.status(500).json({ success: false, message: 'Something went wrong. Please try again.' });
+  }
+};
