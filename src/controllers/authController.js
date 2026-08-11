@@ -102,71 +102,59 @@ export const signIn = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/otp/send
+// Now phone-based. target = 10-digit phone number.
+// mode = 'login' | 'signup'
+// In dev/demo mode: always returns dummy OTP 123456 in response (no SMS needed).
 // ─────────────────────────────────────────────────────────────────────────────
 export const sendOtp = async (req, res) => {
   try {
-    const { target, mode } = req.body; // target must be email, mode is 'login' or 'signup'
+    const { target, mode } = req.body; // target = phone number
+
     if (!target) {
-      return res.status(400).json({ success: false, message: 'Email Address is required' });
+      return res.status(400).json({ success: false, message: 'Mobile number is required' });
     }
 
-    const isEmail = target.includes('@');
-    if (!isEmail || !/\S+@\S+\.\S+/.test(target)) {
-      return res.status(400).json({ success: false, message: 'Invalid email format. Only email is supported for verification codes.' });
+    const phone = target.replace(/\D/g, '').slice(-10);
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      return res.status(400).json({ success: false, message: 'Enter a valid 10-digit Indian mobile number' });
     }
 
-    // Check database by email only
-    const user = await User.findOne({ email: target.toLowerCase() });
+    // Check database by phone
+    const user = await User.findOne({ phone });
 
     if (mode === 'login') {
       if (!user) {
-        return res.status(404).json({ success: false, message: 'No account registered with this email. Please sign up!' });
+        return res.status(404).json({ success: false, message: 'No account registered with this number. Please sign up!' });
       }
       if (!user.isActive) {
         return res.status(403).json({ success: false, message: 'Your account has been deactivated. Please contact support.' });
       }
     } else if (mode === 'signup') {
       if (user) {
-        return res.status(400).json({ success: false, message: 'An account with this email already exists. Please login instead!' });
+        return res.status(400).json({ success: false, message: 'An account with this number already exists. Please login instead!' });
       }
     }
 
-    // Generate 6-digit random code
+    // Generate 6-digit OTP
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-    console.info(`🔑 [OTP SYSTEM] Target: ${target} | Code: ${code}`);
+    console.info(`🔑 [OTP SYSTEM] Phone: +91${phone} | Code: ${code}`);
 
-    // Upsert OTP
+    // Upsert OTP — store against phone number as target
     await Otp.findOneAndUpdate(
-      { target },
+      { target: phone },
       { code, expiresAt },
       { upsert: true, new: true }
     );
 
-    // Send the email (handles SMTP sending and console log fallback automatically)
-    await sendEmail({
-      to: target,
-      subject: `HyperRelestix Verification Code: ${code}`,
-      text: `Your verification code is ${code}. It will expire in 5 minutes.`,
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 25px; color: #071A2F; max-width: 500px; margin: 0 auto; border: 1px solid #E5C17D; border-radius: 16px; background-color: #FAF8F5;">
-          <div style="text-align: center; margin-bottom: 20px;">
-            <h2 style="font-size: 24px; font-weight: bold; margin: 0; color: #071A2F;">Hyper<span style="color: #D4AF37;">Relestix</span></h2>
-            <p style="font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin: 5px 0 0 0; color: #8C96A3;">Premium Real Estate</p>
-          </div>
-          <hr style="border: 0; border-top: 1px solid #E5E9F0; margin-bottom: 20px;" />
-          <h3 style="font-size: 16px; font-weight: bold; margin-top: 0;">Verification Code</h3>
-          <p style="font-size: 13px; color: #4A5568; line-height: 1.5;">Please use the following verification code to access your account. This code is valid for 5 minutes.</p>
-          <div style="background-color: #071A2F; border-radius: 12px; text-align: center; font-size: 30px; font-weight: 800; letter-spacing: 6px; padding: 15px; margin: 20px 0; color: #E5C17D;">
-            ${code}
-          </div>
-          <p style="font-size: 11px; color: #718096; line-height: 1.4; margin-bottom: 0;">If you did not request this verification code, please disregard this email. Your account remains secure.</p>
-        </div>
-      `
+    // ── DEMO MODE: return OTP directly in response (no real SMS gateway needed)
+    // Remove the `otp` field from response once you integrate a real SMS provider.
+    return res.status(200).json({
+      success: true,
+      message: `OTP sent to +91${phone}`,
+      otp: code, // ← DEMO ONLY: remove in production after SMS integration
     });
-
-    return res.status(200).json({ success: true, message: 'OTP sent successfully!' });
   } catch (error) {
     console.error('sendOtp error:', error.message);
     return res.status(500).json({ success: false, message: 'Something went wrong. Please try again.' });
@@ -175,17 +163,26 @@ export const sendOtp = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/otp/verify
+// Now phone-based.
+// Login:  { target: phone, code, mode: 'login' }
+// Signup: { target: phone, code, mode: 'signup', name, email? }
 // ─────────────────────────────────────────────────────────────────────────────
 export const verifyOtp = async (req, res) => {
   try {
-    const { target, code, mode, name, phone, email } = req.body;
+    const { target, code, mode, name, email } = req.body;
+
     if (!target || !code) {
-      return res.status(400).json({ success: false, message: 'Target and OTP code are required' });
+      return res.status(400).json({ success: false, message: 'Phone number and OTP code are required' });
     }
 
-    const otpRecord = await Otp.findOne({ target, code });
+    const phone = target.replace(/\D/g, '').slice(-10);
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      return res.status(400).json({ success: false, message: 'Invalid mobile number' });
+    }
+
+    const otpRecord = await Otp.findOne({ target: phone, code });
     if (!otpRecord) {
-      return res.status(400).json({ success: false, message: 'Invalid OTP code. Please check and try again.' });
+      return res.status(400).json({ success: false, message: 'Invalid OTP. Please check and try again.' });
     }
 
     if (otpRecord.expiresAt < new Date()) {
@@ -193,55 +190,54 @@ export const verifyOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
     }
 
-    // Delete OTP after verification success
+    // Consume OTP
     await Otp.deleteOne({ _id: otpRecord._id });
 
     let user;
     let isNew = false;
 
     if (mode === 'signup') {
-      if (!name || !phone || !email) {
-        return res.status(400).json({ success: false, message: 'Name, Mobile Number, and Email are required for signup' });
-      }
-      if (!/^[6-9]\d{9}$/.test(phone)) {
-        return res.status(400).json({ success: false, message: 'Invalid 10-digit Indian mobile number' });
-      }
-      if (!/\S+@\S+\.\S+/.test(email)) {
-        return res.status(400).json({ success: false, message: 'Invalid email format' });
+      // Signup: name required, email optional
+      if (!name || !name.trim()) {
+        return res.status(400).json({ success: false, message: 'Full name is required for signup' });
       }
 
-      // Check if user already exists with either phone or email
-      const existingUser = await User.findOne({ $or: [{ phone }, { email: email.toLowerCase() }] });
+      // Check if phone already registered
+      const existingUser = await User.findOne({ phone });
       if (existingUser) {
-        return res.status(400).json({ success: false, message: 'A user with this Mobile Number or Email already exists.' });
+        return res.status(400).json({ success: false, message: 'An account with this number already exists. Please login instead!' });
       }
 
-      // Create new user
+      // Resolve email — use provided or generate a placeholder
+      const resolvedEmail = email && /\S+@\S+\.\S+/.test(email)
+        ? email.toLowerCase()
+        : `${phone}@phone.kinproperty.com`;
+
       user = await User.create({
-        name,
+        name: name.trim(),
         phone,
-        email: email.toLowerCase(),
+        email: resolvedEmail,
         role: 'client',
       });
       isNew = true;
     } else {
-      // Login flow: target is email
-      user = await User.findOne({ email: target.toLowerCase() });
+      // Login flow: find by phone
+      user = await User.findOne({ phone });
       if (!user) {
-        return res.status(404).json({ success: false, message: 'User not found. Please sign up!' });
+        return res.status(404).json({ success: false, message: 'No account found. Please sign up first!' });
       }
       if (!user.isActive) {
-        return res.status(403).json({ success: false, message: 'Account deactivated.' });
+        return res.status(403).json({ success: false, message: 'Account deactivated. Please contact support.' });
       }
     }
 
-    // Set cookie session
-    setTokenCookie(res, user._id);
+    const token = setTokenCookie(res, user._id);
 
     return res.status(isNew ? 201 : 200).json({
       success: true,
       message: isNew ? 'Account created successfully!' : 'Welcome back!',
       isNew,
+      token,
       user: userPayload(user),
     });
   } catch (error) {
