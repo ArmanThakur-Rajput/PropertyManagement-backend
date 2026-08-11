@@ -433,23 +433,33 @@ export const getWishlist = async (req, res) => {
 // POST /api/auth/social
 export const socialSignIn = async (req, res) => {
   try {
-    const { name, email, provider } = req.body;
+    const { name, email, provider, phone: rawPhone } = req.body;
     if (!name || !email) {
       return res.status(400).json({ success: false, message: 'Name and Email are required for social login' });
     }
 
-    let user = await User.findOne({ email: email.toLowerCase() });
+    // Normalise the real phone if provided (strip non-digits, take last 10)
+    const realPhone = rawPhone ? rawPhone.replace(/\D/g, '').slice(-10) : null;
+    const isRealPhone = realPhone && /^[6-9]\d{9}$/.test(realPhone);
+
+    // Try to find existing user by phone first (phone OTP flow), then by email
+    let user = isRealPhone
+      ? await User.findOne({ $or: [{ phone: realPhone }, { email: email.toLowerCase() }] })
+      : await User.findOne({ email: email.toLowerCase() });
+
     let isNew = false;
 
     if (!user) {
-      // Generate a unique collision-resistant placeholder phone (social users have no phone)
-      let phone;
-      let isPhoneUnique = false;
-      while (!isPhoneUnique) {
-        const rand = parseInt(crypto.randomBytes(4).toString('hex'), 16) % 9000000;
-        phone = `555${String(1000000 + rand).slice(0, 7)}`;
-        const existingPhone = await User.findOne({ phone });
-        if (!existingPhone) isPhoneUnique = true;
+      // New user — use real phone if valid, else generate placeholder
+      let phone = realPhone && isRealPhone ? realPhone : null;
+      if (!phone) {
+        let isPhoneUnique = false;
+        while (!isPhoneUnique) {
+          const rand = parseInt(crypto.randomBytes(4).toString('hex'), 16) % 9000000;
+          phone = `555${String(1000000 + rand).slice(0, 7)}`;
+          const existingPhone = await User.findOne({ phone });
+          if (!existingPhone) isPhoneUnique = true;
+        }
       }
 
       user = await User.create({
@@ -463,15 +473,22 @@ export const socialSignIn = async (req, res) => {
       if (!user.isActive) {
         return res.status(403).json({ success: false, message: 'Your account has been deactivated.' });
       }
+      // If user exists but has placeholder phone and we now have real phone — update it
+      if (isRealPhone && user.phone !== realPhone && user.phone.startsWith('555')) {
+        const conflict = await User.findOne({ phone: realPhone, _id: { $ne: user._id } });
+        if (!conflict) user.phone = realPhone;
+        await user.save();
+      }
     }
 
-    // Set cookie
-    setTokenCookie(res, user._id);
+    // Set cookie AND return token in response body (so frontend can persist to localStorage)
+    const token = setTokenCookie(res, user._id);
 
     return res.status(isNew ? 201 : 200).json({
       success: true,
       message: isNew ? `Welcome, ${name}! Registered via ${provider}.` : 'Welcome back!',
       isNew,
+      token,                    // ← frontend stores this in localStorage for session persistence
       user: userPayload(user),
     });
   } catch (error) {
