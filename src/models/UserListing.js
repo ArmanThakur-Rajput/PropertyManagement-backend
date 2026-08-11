@@ -24,7 +24,7 @@ const userListingSchema = new mongoose.Schema(
     // ── Listing meta ───────────────────────────────────────────────────────────
     propertyType: {
       type: String,
-      enum: ['Residential', 'Commercial', 'Plot/Villa'],
+      enum: ['Residential', 'Commercial', 'Plot/Villa', 'Plot', 'Villa'],
       required: true,
     },
     adType: {
@@ -46,6 +46,8 @@ const userListingSchema = new mongoose.Schema(
     adminNote: { type: String, default: '' }, // rejection reason from admin
 
     // ── Step data: Property Details ────────────────────────────────────────────
+    villaType:              { type: String, default: '' },  // Villa-specific
+    plotArea:               { type: String, default: '' },  // Villa-specific
     apartmentType:          { type: String, default: '' },
     bhkType:                { type: String, default: '' },
     ownershipType:          { type: String, default: '' },
