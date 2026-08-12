@@ -78,8 +78,9 @@ export const signIn = async (req, res) => {
       if (!user.isActive) {
         return res.status(403).json({ success: false, message: 'Your account has been deactivated. Please contact support.' });
       }
-      user.name = name;
-      if (email) user.email = email;
+      // Only update name if user doesn't already have one (never overwrite existing name from lead form)
+      if (!user.name && name) user.name = name;
+      if (email && !user.email) user.email = email;
       await user.save();
     } else {
       user = await User.create({ name, phone, email: email || '', role: 'client' });
@@ -696,8 +697,9 @@ export const verifyPhoneOtp = async (req, res) => {
       if (!user.isActive) {
         return res.status(403).json({ success: false, message: 'Account deactivated. Please contact support.' });
       }
-      if (name) user.name = name;
-      if (email && /\S+@\S+\.\S+/.test(email)) user.email = email.toLowerCase();
+      // Only update name/email if user doesn't already have one (never overwrite from lead form)
+      if (!user.name && name) user.name = name;
+      if (!user.email && email && /\S+@\S+\.\S+/.test(email)) user.email = email.toLowerCase();
       await user.save();
     }
 
