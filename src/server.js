@@ -8,14 +8,19 @@ import compression from 'compression';
 import connectDB from './config/db.js';
 
 // ── Route imports ──────────────────────────────────────────────────────────────
-import authRoutes         from './routes/auth.js';
-import enquiryRoutes      from './routes/enquiry.js';
-import propertyRoutes     from './routes/property.js';
-import chatRoutes         from './routes/chat.js';
-import blogRoutes         from './routes/blog.js';
-import uploadRoutes       from './routes/upload.js';
-import partnerRoutes      from './routes/partner.js';
-import userListingRoutes  from './routes/userListings.js';  // ← NEW
+import authRoutes          from './routes/auth.js';
+import enquiryRoutes       from './routes/enquiry.js';
+import propertyRoutes      from './routes/property.js';
+import chatRoutes          from './routes/chat.js';
+import blogRoutes          from './routes/blog.js';
+import uploadRoutes        from './routes/upload.js';
+import partnerRoutes       from './routes/partner.js';
+import userListingRoutes   from './routes/userListings.js';
+import testimonialsRoutes  from './routes/testimonials.js';   // ← NEW
+import faqsRoutes          from './routes/faqs.js';           // ← NEW
+import advisorsRoutes      from './routes/advisors.js';       // ← NEW
+import settingsRoutes      from './routes/settings.js';       // ← NEW
+import masterDataRoutes    from './routes/masterData.js';     // ← NEW
 
 const app = express();
 
@@ -39,7 +44,7 @@ app.use(
         styleSrc:    ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         fontSrc:     ["'self'", 'https://fonts.gstatic.com', 'data:'],
         imgSrc:      ["'self'", 'data:', 'https:', 'blob:'],
-        mediaSrc:    ["'self'", 'https:', 'blob:'],   // allows R2 videos
+        mediaSrc:    ["'self'", 'https:', 'blob:'],
         connectSrc:  ["'self'", 'https://integrate.api.nvidia.com', 'https://oauth2.googleapis.com'],
         objectSrc:   ["'none'"],
         upgradeInsecureRequests: isProd ? [] : null,
@@ -65,7 +70,7 @@ app.use(cookieParser());
 
 // ── Base Route ─────────────────────────────────────────────────────────────────
 app.get('/', (_req, res) => {
-  res.json({ success: true, message: 'HyperRelestix API running 🚀' });
+  res.json({ success: true, message: 'API running 🚀' });
 });
 
 // ── API Routes ─────────────────────────────────────────────────────────────────
@@ -74,13 +79,18 @@ app.use('/api/enquiry',        enquiryRoutes);
 app.use('/api/properties',     propertyRoutes);
 app.use('/api/chat',           chatRoutes);
 app.use('/api/blogs',          blogRoutes);
-app.use('/api/upload',         uploadRoutes);          // ← Cloudflare R2
+app.use('/api/upload',         uploadRoutes);
 app.use('/api/partners',       partnerRoutes);
-app.use('/api/user-listings',  userListingRoutes);     // ← Post Free Ad
+app.use('/api/user-listings',  userListingRoutes);
+app.use('/api/testimonials',   testimonialsRoutes);   // ← NEW
+app.use('/api/faqs',           faqsRoutes);           // ← NEW
+app.use('/api/advisors',       advisorsRoutes);       // ← NEW
+app.use('/api/settings',       settingsRoutes);       // ← NEW
+app.use('/api/master-data',    masterDataRoutes);     // ← NEW
 
 // ── Health Check ───────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
-  res.json({ success: true, message: 'HyperRelestix API running 🚀', env: process.env.NODE_ENV });
+  res.json({ success: true, message: 'API running 🚀', env: process.env.NODE_ENV });
 });
 
 // ── 404 ────────────────────────────────────────────────────────────────────────
