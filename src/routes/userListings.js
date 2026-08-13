@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   captureLead,
+  createListing,
   saveStep,
   getMyListings,
   getListingById,
@@ -29,6 +30,9 @@ const leadLimiter = rateLimit({
 
 // Phase 1 — lead capture (or resume existing draft)
 router.post('/lead', leadLimiter, captureLead);
+
+// Force-create new draft (Post New Ad — never resumes existing)
+router.post('/create', leadLimiter, createListing);
 
 // Phase 2 — step auto-save
 router.patch('/:id/step', saveStep);

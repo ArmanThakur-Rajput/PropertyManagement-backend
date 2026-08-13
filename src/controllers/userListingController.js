@@ -107,6 +107,51 @@ export const captureLead = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// FORCE CREATE — POST /api/user-listings/create
+// Always creates a brand-new draft, never resumes existing.
+// Used when user explicitly clicks "Post New Ad".
+// ─────────────────────────────────────────────────────────────────────────────
+export const createListing = async (req, res) => {
+  try {
+    const { ownerName, ownerPhone, ownerEmail, propertyType, adType, city } = req.body;
+
+    if (!ownerName || !ownerPhone || !propertyType || !adType) {
+      return res.status(400).json({
+        success: false,
+        message: 'ownerName, ownerPhone, propertyType and adType are required',
+      });
+    }
+
+    const phone = ownerPhone.replace(/\D/g, '').slice(-10);
+    if (!/^\d{10}$/.test(phone)) {
+      return res.status(400).json({ success: false, message: 'Enter a valid 10-digit mobile number' });
+    }
+
+    // Always create fresh — no existing draft check
+    const listing = await UserListing.create({
+      ownerName:   ownerName.trim(),
+      ownerPhone:  phone,
+      ownerEmail:  (ownerEmail || '').trim().toLowerCase(),
+      propertyType,
+      adType,
+      city:        city || '',
+      status:      'draft',
+      currentStep: 0,
+    });
+
+    return res.status(201).json({
+      success: true,
+      isReturning: false,
+      message: 'New draft created.',
+      listing,
+    });
+  } catch (err) {
+    console.error('createListing error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PHASE 2 — PATCH /api/user-listings/:id/step
 // Auto-saves the current wizard step data into the draft.
 // ownerPhone must be passed in body to verify ownership (no JWT needed).
