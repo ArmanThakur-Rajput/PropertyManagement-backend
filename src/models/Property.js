@@ -54,6 +54,12 @@ const propertySchema = new mongoose.Schema(
     },
 
     isActive:   { type: Boolean, default: true }, // soft-delete / unpublish
+
+    // ── Who added this property ────────────────────────────────────────────────
+    addedBy: {
+      role: { type: String, default: '' }, // 'admin' | 'management'
+      name: { type: String, default: '' }, // display name of the user
+    },
   },
   { timestamps: true }
 );

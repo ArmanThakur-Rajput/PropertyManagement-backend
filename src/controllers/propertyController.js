@@ -15,7 +15,7 @@ import Property from '../models/Property.js';
 
 const LIST_FIELDS =
   'title type price priceLabel location city image badge badgeColor status featured ' +
-  'bedrooms bathrooms area parking agent yearBuilt developer rera coordinates createdAt furnishing';
+  'bedrooms bathrooms area parking agent yearBuilt developer rera coordinates createdAt furnishing addedBy';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/properties  — buyer-facing listing with filters
@@ -167,7 +167,13 @@ export const createProperty = async (req, res) => {
         message: 'title, type, price, location and city are required',
       });
     }
-    const property = await Property.create(req.body);
+    const property = await Property.create({
+      ...req.body,
+      addedBy: {
+        role: req.user?.role || 'admin',
+        name: req.user?.name || '',
+      },
+    });
     return res.status(201).json({ success: true, property });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
