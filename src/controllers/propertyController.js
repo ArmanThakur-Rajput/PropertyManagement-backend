@@ -1,11 +1,10 @@
 /**
  * propertyController.js
  *
- * Handles the admin-managed "luxury property" listings (existing flow).
- * Also exposes a buyer-facing search with all filters the Properties page uses.
- *
  * GET /api/properties
- *   Filters: type, city, minPrice, maxPrice, bedrooms, bathrooms,
+ *   Filters: type, listingType, locality (multi, comma-sep), city,
+ *            bhk (multi, comma-sep e.g. "2 BHK,3 BHK"),
+ *            minPrice, maxPrice, bedrooms, bathrooms,
  *            furnishing, status, featured, search
  *   Sort:    newest | price-asc | price-desc | area-desc
  *   Pagination: page, limit
@@ -14,8 +13,9 @@
 import Property from '../models/Property.js';
 
 const LIST_FIELDS =
-  'title type price priceLabel location city image badge badgeColor status featured ' +
-  'bedrooms bathrooms area parking agent yearBuilt developer rera coordinates createdAt furnishing addedBy';
+  'title type listingType price priceLabel location city locality image images ' +
+  'badge badgeColor status featured bedrooms bathrooms area parking ' +
+  'agent yearBuilt developer rera coordinates createdAt furnishing';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/properties  — buyer-facing listing with filters
@@ -23,93 +23,148 @@ const LIST_FIELDS =
 export const getAllProperties = async (req, res) => {
   try {
     const {
-      type, city,
+      type,
+      listingType,      // Buy | Rent | PG | Flatmates
+      locality,         // comma-sep: "Baner,Kharadi"  (multi-select from frontend)
+      city,             // legacy single city param
+      bhk,              // comma-sep: "2 BHK,3 BHK"
       minPrice, maxPrice,
       bedrooms, bathrooms,
       furnishing, status,
       featured, search,
-      sort = 'newest',
-      page = 1, limit = 20,
+      sort  = 'newest',
+      page  = 1,
+      limit = 20,
     } = req.query;
 
     const filter = { isActive: true };
 
-    // ── Type filter (Villa, Apartment, Penthouse…) ─────────────────────────
-    if (type && type !== 'All') filter.type = type;
-
-    // ── City / locality filter ─────────────────────────────────────────────
-    if (city && city !== 'All') {
-      const LOCALITIES = [
-        'Balewadi', 'Hadapsar', 'KP', 'NIBM Road', 'Viman Nagar', 'Kharadi',
-        'Punewadi', 'Kothrud', 'Karve Nagar', 'Shewalewadi Road', 'Baner',
-        'Pashan', 'Bawadhan', 'MG Road', 'JM Road', 'F.C. Road',
-        'Hinjewadi Phase I, II', 'Ravet', 'Ganga Dham Chownk', 'Swargate',
-        'Katraj', 'Prabhat Road', 'Bibwewadi', 'Bhekrai Nagar', 'Pimple Gurav',
-        'Pimple Saudagar', 'Dhayari', 'Kondhwa', 'Undri', 'Muhamad wadi',
-        'Handewadi', 'Wakad', 'Shivaji Nagar', 'Parvati Hill', 'Sukhsagar Nagar',
-        'Singhgad Road', 'Camp', 'Pimpri Gaon', 'Chinchwad Gaon', 'Bhosari',
-        'Nigdi', 'Bhugaon', 'Man', 'Sus', 'Malwadi', 'Warje', 'Fursungi',
-        'Wagholi', 'Manjari', 'Lohgaon', 'Vishrantwadi', 'Khadki', 'Nanded City',
-      ];
-      if (LOCALITIES.includes(city)) {
-        filter.location = new RegExp(city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      } else {
-        filter.city = city;
-      }
+    // ── listingType (Buy / Rent / PG / Flatmates) ──────────────────────────
+    if (listingType && listingType !== 'All') {
+      // Normalise: frontend sends "rent" lowercase, model stores "Rent"
+      const normalised = listingType.charAt(0).toUpperCase() + listingType.slice(1).toLowerCase();
+      filter.listingType = normalised;
     }
 
-    // ── Price range ─────────────────────────────────────────────────────────
+    // ── Property type (Villa, Apartment, Commercial, Plot …) ────────────────────
+    // ?type= is used by frontend sidebar; ?propertyType= is sent by Hero search
+    const { propertyType } = req.query;
+    const resolvedType = propertyType || type;
+    if (resolvedType && resolvedType !== 'All') filter.type = resolvedType;
+
+    // ── Locality — multi-value, comma-separated ───────────────────────────────
+    // Priority: locality param > legacy city param
+    if (locality && locality !== 'All') {
+      const locs = locality.split(',').map(l => l.trim()).filter(Boolean);
+      if (locs.length === 1) {
+        // Single locality: try exact match on locality field first,
+        // then fall back to regex on location string
+        filter.$or = [
+          { locality: { $regex: locs[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } },
+          { location: { $regex: locs[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } },
+        ];
+      } else {
+        // Multiple localities: $or across all
+        filter.$or = locs.flatMap(l => {
+          const safe = l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          return [
+            { locality: { $regex: safe, $options: 'i' } },
+            { location: { $regex: safe, $options: 'i' } },
+          ];
+        });
+      }
+    } else if (city && city !== 'All') {
+      // Legacy city filter (kept for backward compat)
+      const safe = city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.$or = [
+        { city:     { $regex: safe, $options: 'i' } },
+        { locality: { $regex: safe, $options: 'i' } },
+        { location: { $regex: safe, $options: 'i' } },
+      ];
+    }
+
+    // ── BHK — multi-value, comma-separated ("2 BHK,3 BHK") ──────────────────
+    if (bhk) {
+      const bhkValues = bhk.split(',').map(b => b.trim()).filter(Boolean);
+      if (bhkValues.length) {
+        // Parse each "N BHK" → number; "4+ BHK" → $gte 4
+        const bedroomConditions = bhkValues.map(b => {
+          if (b === '4+ BHK') return { bedrooms: { $gte: 4 } };
+          const n = parseInt(b);
+          return isNaN(n) ? null : { bedrooms: n };
+        }).filter(Boolean);
+
+        if (bedroomConditions.length === 1) {
+          Object.assign(filter, bedroomConditions[0]);
+        } else if (bedroomConditions.length > 1) {
+          // If $or already set (locality), wrap everything cleanly
+          if (filter.$or) {
+            const localityOr = filter.$or;
+            delete filter.$or;
+            filter.$and = [
+              { $or: localityOr },
+              { $or: bedroomConditions },
+            ];
+          } else {
+            filter.$or = bedroomConditions;
+          }
+        }
+      }
+    } else if (bedrooms && bedrooms !== 'Any') {
+      // Legacy single bedrooms param
+      const n = Number(bedrooms);
+      filter.bedrooms = n >= 4 ? { $gte: 4 } : n;
+    }
+
+    // ── Bathrooms ─────────────────────────────────────────────────────────────
+    if (bathrooms && bathrooms !== 'Any') {
+      filter.bathrooms = { $gte: Number(bathrooms) };
+    }
+
+    // ── Price range ───────────────────────────────────────────────────────────
     if (minPrice || maxPrice) {
       filter.price = {};
       if (minPrice) filter.price.$gte = Number(minPrice);
       if (maxPrice) filter.price.$lte = Number(maxPrice);
     }
 
-    // ── Bedrooms ────────────────────────────────────────────────────────────
-    if (bedrooms && bedrooms !== 'Any') {
-      const n = Number(bedrooms);
-      if (n >= 4) {
-        filter.bedrooms = { $gte: 4 };       // "4+" bucket
+    // ── Furnishing ────────────────────────────────────────────────────────────
+    if (furnishing && furnishing !== 'Any') filter.furnishing = furnishing;
+
+    // ── Status (Ready to Move / Under Construction …) ─────────────────────────
+    if (status && status !== 'Any') filter.status = status;
+
+    // ── Featured ──────────────────────────────────────────────────────────────
+    if (featured === 'true') filter.featured = true;
+
+    // ── Text search ───────────────────────────────────────────────────────────
+    if (search) {
+      const safe = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchOr = [
+        { title:    { $regex: safe, $options: 'i' } },
+        { location: { $regex: safe, $options: 'i' } },
+        { locality: { $regex: safe, $options: 'i' } },
+        { city:     { $regex: safe, $options: 'i' } },
+        { developer:{ $regex: safe, $options: 'i' } },
+      ];
+      // Merge with existing $or/$and safely
+      if (filter.$and) {
+        filter.$and.push({ $or: searchOr });
+      } else if (filter.$or) {
+        const existing = filter.$or;
+        delete filter.$or;
+        filter.$and = [{ $or: existing }, { $or: searchOr }];
       } else {
-        filter.bedrooms = n;
+        filter.$or = searchOr;
       }
     }
 
-    // ── Bathrooms ───────────────────────────────────────────────────────────
-    if (bathrooms && bathrooms !== 'Any') {
-      filter.bathrooms = { $gte: Number(bathrooms) };
-    }
-
-    // ── Furnishing ──────────────────────────────────────────────────────────
-    if (furnishing && furnishing !== 'Any') {
-      filter.furnishing = furnishing;
-    }
-
-    // ── Status (Ready to Move / Under Construction…) ────────────────────────
-    if (status && status !== 'Any') {
-      filter.status = status;
-    }
-
-    // ── Featured only ────────────────────────────────────────────────────────
-    if (featured === 'true') filter.featured = true;
-
-    // ── Text search ──────────────────────────────────────────────────────────
-    if (search) {
-      const safe = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      filter.$or = [
-        { title:     { $regex: safe, $options: 'i' } },
-        { location:  { $regex: safe, $options: 'i' } },
-        { city:      { $regex: safe, $options: 'i' } },
-        { developer: { $regex: safe, $options: 'i' } },
-      ];
-    }
-
-    // ── Sort ─────────────────────────────────────────────────────────────────
+    // ── Sort ──────────────────────────────────────────────────────────────────
     const sortMap = {
-      newest:      { createdAt: -1 },
-      'price-asc': { price:  1 },
-      'price-desc':{ price: -1 },
-      'area-desc': { area:  -1 },
+      newest:       { createdAt: -1 },
+      'price-asc':  { price:  1 },
+      'price-desc': { price: -1 },
+      'area-desc':  { area:  -1 },
     };
     const sortObj = sortMap[sort] || { createdAt: -1 };
 
@@ -134,6 +189,7 @@ export const getAllProperties = async (req, res) => {
       properties,
     });
   } catch (error) {
+    console.error('getAllProperties error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -167,13 +223,7 @@ export const createProperty = async (req, res) => {
         message: 'title, type, price, location and city are required',
       });
     }
-    const property = await Property.create({
-      ...req.body,
-      addedBy: {
-        role: req.user?.role || 'admin',
-        name: req.user?.name || '',
-      },
-    });
+    const property = await Property.create(req.body);
     return res.status(201).json({ success: true, property });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -256,7 +306,12 @@ export const getPropertyCounts = async (req, res) => {
                 {
                   $sum: {
                     $cond: [
-                      { $regexMatch: { input: '$location', regex: loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), options: 'i' } },
+                      {
+                        $or: [
+                          { $regexMatch: { input: '$location', regex: loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), options: 'i' } },
+                          { $regexMatch: { input: { $ifNull: ['$locality', ''] }, regex: loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), options: 'i' } },
+                        ],
+                      },
                       1, 0,
                     ],
                   },
