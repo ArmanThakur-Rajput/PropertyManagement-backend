@@ -181,10 +181,13 @@ export const getAllProperties = async (req, res) => {
     ]);
 
     // Ensure image field is always set (fallback to images[0] for user-posted properties)
-    const normalized = properties.map(p => ({
-      ...p,
-      image: p.image || p.images?.[0] || '',
-    }));
+    const normalized = properties.map(p => {
+      const obj = p;
+      if (!obj.image && obj.images && obj.images.length > 0) {
+        obj.image = obj.images[0];
+      }
+      return obj;
+    });
 
     return res.status(200).json({
       success: true,
