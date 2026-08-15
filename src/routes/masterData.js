@@ -15,12 +15,19 @@ router.get('/list', async (req, res) => {
   }
 });
 
-// GET /api/master-data?category=locality  — filter by category
+// GET /api/master-data  — all items grouped by category (used by frontend dropdowns)
 router.get('/', async (req, res) => {
   try {
-    const filter = req.query.category ? { category: req.query.category } : {};
-    const items = await MasterData.find(filter).sort({ value: 1 });
-    res.json({ success: true, items });
+    const items = await MasterData.find({}).sort({ category: 1, value: 1 });
+
+    // Group by category → { city: [], locality_pune: [], locality_pcmc: [], ... }
+    const data = {};
+    for (const item of items) {
+      if (!data[item.category]) data[item.category] = [];
+      data[item.category].push(item.value);
+    }
+
+    res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
