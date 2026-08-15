@@ -411,7 +411,7 @@ export const updateListingStatus = async (req, res) => {
           bathrooms:   toNum(listing.bathrooms),
           area:        toNum(listing.area || listing.carpetArea),
           parking:     toNum(listing.parking),
-          image:       listing.images?.[0] || '',
+          image:       (listing.images && listing.images.length > 0) ? listing.images[0] : '',
           images:      listing.images || [],
           amenities:   listing.amenities || [],
           description: listing.description || listing.additionalNotes || '',
