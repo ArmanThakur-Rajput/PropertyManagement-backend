@@ -180,13 +180,19 @@ export const getAllProperties = async (req, res) => {
         .lean(),
     ]);
 
+    // Ensure image field is always set (fallback to images[0] for user-posted properties)
+    const normalized = properties.map(p => ({
+      ...p,
+      image: p.image || p.images?.[0] || '',
+    }));
+
     return res.status(200).json({
       success: true,
       total,
-      count: properties.length,
+      count: normalized.length,
       page: Number(page),
       totalPages: Math.ceil(total / Number(limit)),
-      properties,
+      properties: normalized,
     });
   } catch (error) {
     console.error('getAllProperties error:', error);
@@ -205,6 +211,7 @@ export const getPropertyById = async (req, res) => {
     if (!property) {
       return res.status(404).json({ success: false, message: 'Property not found' });
     }
+    property.image = property.image || property.images?.[0] || '';
     return res.status(200).json({ success: true, property });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -223,7 +230,13 @@ export const createProperty = async (req, res) => {
         message: 'title, type, price, location and city are required',
       });
     }
-    const property = await Property.create(req.body);
+    const property = await Property.create({
+      ...req.body,
+      addedBy: {
+        role: req.user?.role || 'admin',
+        name: req.user?.name || '',
+      },
+    });
     return res.status(201).json({ success: true, property });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -243,6 +256,7 @@ export const updateProperty = async (req, res) => {
     if (!property) {
       return res.status(404).json({ success: false, message: 'Property not found' });
     }
+    property.image = property.image || property.images?.[0] || '';
     return res.status(200).json({ success: true, property });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
