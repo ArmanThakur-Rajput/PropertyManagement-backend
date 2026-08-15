@@ -25,6 +25,7 @@
  */
 
 import UserListing from '../models/UserListing.js';
+import Property from '../models/Property.js';
 
 // Fields allowed in step patch (whitelist to prevent injecting status etc.)
 const STEP_FIELDS = [
@@ -368,6 +369,66 @@ export const updateListingStatus = async (req, res) => {
 
     if (!listing) {
       return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+
+    // ── Auto-create Property when admin approves ───────────────────────────────
+    if (status === 'active') {
+      try {
+        // Map UserListing propertyType → Property type enum
+        const typeMap = {
+          'Residential':  listing.bhkType ? 'Apartment' : 'Apartment',
+          'Commercial':   'Commercial',
+          'Plot/Villa':   'Villa',
+          'Plot':         'Plot',
+          'Villa':        'Villa',
+        };
+        const mappedType = typeMap[listing.propertyType] || 'Apartment';
+
+        // Build a human-readable title
+        const titleParts = [
+          listing.bhkType || listing.apartmentType || listing.propertyType,
+          listing.adType === 'Rent' ? 'for Rent' : listing.adType === 'Resale' ? 'for Resale' : 'for Sale',
+          listing.locality ? `in ${listing.locality}` : listing.city ? `in ${listing.city}` : '',
+        ].filter(Boolean);
+        const title = titleParts.join(' ');
+
+        // Parse price — strip commas/currency symbols, convert to number
+        const rawPrice = String(listing.price || '0').replace(/[₹,\s]/g, '');
+        const price = parseFloat(rawPrice) || 0;
+
+        // Parse numeric fields safely
+        const toNum = (v) => { const n = parseFloat(String(v || '0').replace(/[^\d.]/g, '')); return isNaN(n) ? 0 : n; };
+
+        await Property.create({
+          title,
+          type:        mappedType,
+          price,
+          priceLabel:  listing.price || '',
+          location:    listing.locality || listing.city || 'Pune',
+          city:        listing.city || 'Pune',
+          bedrooms:    toNum(listing.bhkType),   // e.g. "3 BHK" → 3
+          bathrooms:   toNum(listing.bathrooms),
+          area:        toNum(listing.area || listing.carpetArea),
+          parking:     toNum(listing.parking),
+          image:       listing.images?.[0] || '',
+          images:      listing.images || [],
+          amenities:   listing.amenities || [],
+          description: listing.description || listing.additionalNotes || '',
+          furnishing:  listing.furnishing || '',
+          facing:      listing.facing || '',
+          status:      'Ready to Move',
+          isActive:    true,
+          badge:       'New',
+          badgeColor:  'green',
+          addedBy: {
+            role: 'user',
+            name: listing.ownerName || '',
+          },
+        });
+      } catch (propErr) {
+        // Don't fail the approval if Property creation fails — log and continue
+        console.error('Auto Property creation failed:', propErr.message);
+      }
     }
 
     return res.status(200).json({ success: true, listing });
