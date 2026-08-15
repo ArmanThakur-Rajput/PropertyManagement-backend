@@ -15,6 +15,10 @@ const siteSettingsSchema = new mongoose.Schema(
     metaDescription:     { type: String, default: '' },
 
     // ── Hero Section ──────────────────────────────────────────────────────────
+    heroEyebrow:             { type: String, default: '' },
+    heroHeadline:            { type: String, default: '' },
+    heroHeadlineGold:        { type: String, default: '' },
+    heroSubtitle:            { type: String, default: '' },
     heroTagline:             { type: String, default: '' },
     heroTitleLine1:          { type: String, default: '' },
     heroTitleLine2Highlight: { type: String, default: '' },
@@ -22,6 +26,22 @@ const siteSettingsSchema = new mongoose.Schema(
     heroDescription:         { type: String, default: '' },
     heroVideoUrl:            { type: String, default: '' },
     heroMobileImageUrl:      { type: String, default: '' },
+
+    // ── Hero Stats Bar ────────────────────────────────────────────────────────
+    heroStats: {
+      type: [
+        {
+          value: { type: String, default: '' },
+          label: { type: String, default: '' },
+        }
+      ],
+      default: [
+        { value: 'Trusted by 10,000+', label: 'Happy Customers'   },
+        { value: '5,000+',             label: 'Properties Listed' },
+        { value: '4.8/5',              label: 'Customer Rating'   },
+        { value: 'Pune & PCMC',        label: 'Wide Coverage'     },
+      ],
+    },
 
     // ── Contact ───────────────────────────────────────────────────────────────
     contactPhone1:              { type: String, default: '' },
