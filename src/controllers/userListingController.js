@@ -26,6 +26,7 @@
 
 import UserListing from '../models/UserListing.js';
 import Property from '../models/Property.js';
+import { invalidateCache } from '../middleware/cache.js';
 
 // Fields allowed in step patch (whitelist to prevent injecting status etc.)
 const STEP_FIELDS = [
@@ -425,6 +426,9 @@ export const updateListingStatus = async (req, res) => {
             name: listing.ownerName || '',
           },
         });
+
+        // Bust the properties cache so new property shows immediately
+        invalidateCache('/api/properties');
       } catch (propErr) {
         // Don't fail the approval if Property creation fails — log and continue
         console.error('Auto Property creation failed:', propErr.message);
