@@ -102,26 +102,47 @@ export const getAllProperties = async (req, res) => {
     if (bhk) {
       const bhkValues = bhk.split(',').map(b => b.trim()).filter(Boolean);
       if (bhkValues.length) {
-        // Parse each "N BHK" → number; "4+ BHK" → $gte 4
-        const bedroomConditions = bhkValues.map(b => {
-          if (b === '4+ BHK') return { bedrooms: { $gte: 4 } };
+        // For user listings: match exact bhkType string ("1 BHK", "1 RK" etc.)
+        // For admin listings: match bedrooms number (bhkType field not present)
+        const bhkConditions = bhkValues.map(b => {
+          if (b === '4+ BHK') {
+            return {
+              $or: [
+                { bhkType: { $exists: false }, bedrooms: { $gte: 4 } }, // admin listing
+                { bhkType: b },                                           // user listing
+              ],
+            };
+          }
           const n = parseInt(b);
-          return isNaN(n) ? null : { bedrooms: n };
+          return {
+            $or: [
+              { bhkType: b },                                             // user listing — exact match e.g. "1 BHK" or "1 RK"
+              { bhkType: { $exists: false }, bedrooms: isNaN(n) ? 0 : n }, // admin listing — no bhkType, use bedrooms number
+            ],
+          };
         }).filter(Boolean);
 
-        if (bedroomConditions.length === 1) {
-          Object.assign(filter, bedroomConditions[0]);
-        } else if (bedroomConditions.length > 1) {
-          // If $or already set (locality), wrap everything cleanly
-          if (filter.$or) {
-            const localityOr = filter.$or;
+        if (bhkConditions.length === 1) {
+          const cond = bhkConditions[0];
+          if (filter.$and) {
+            filter.$and.push(cond);
+          } else if (filter.$or) {
+            const existing = filter.$or;
             delete filter.$or;
-            filter.$and = [
-              { $or: localityOr },
-              { $or: bedroomConditions },
-            ];
+            filter.$and = [{ $or: existing }, cond];
           } else {
-            filter.$or = bedroomConditions;
+            Object.assign(filter, cond);
+          }
+        } else if (bhkConditions.length > 1) {
+          const multiCond = { $or: bhkConditions };
+          if (filter.$and) {
+            filter.$and.push(multiCond);
+          } else if (filter.$or) {
+            const existing = filter.$or;
+            delete filter.$or;
+            filter.$and = [{ $or: existing }, multiCond];
+          } else {
+            filter.$or = bhkConditions;
           }
         }
       }
@@ -143,8 +164,42 @@ export const getAllProperties = async (req, res) => {
       if (maxPrice) filter.price.$lte = Number(maxPrice);
     }
 
-    // ── Furnishing ────────────────────────────────────────────────────────────
-    if (furnishing && furnishing !== 'Any') filter.furnishing = furnishing;
+    // ── adType → listingType (frontend sends adType, model stores listingType) ──
+    const resolvedAdType = req.query.adType || listingType;
+    if (resolvedAdType && resolvedAdType !== 'All') {
+      const norm = resolvedAdType.charAt(0).toUpperCase() + resolvedAdType.slice(1).toLowerCase();
+      // Special cases: PG/Hostel, Flatmates casing preserve karo
+      const adTypeMap = {
+        'Pg/hostel': 'PG/Hostel',
+        'Flatmates': 'Flatmates',
+        'Resale':    'Resale',
+        'Rent':      'Rent',
+        'Sale':      'Sale',
+      };
+      filter.listingType = adTypeMap[norm] || norm;
+    }
+
+    // ── Furnishing — comma-sep multi value support ────────────────────────────
+    if (furnishing && furnishing !== 'Any') {
+      const vals = furnishing.split(',').map(f => f.trim()).filter(Boolean);
+      filter.furnishing = vals.length === 1 ? vals[0] : { $in: vals };
+    }
+
+    // ── Facing — comma-sep multi value ───────────────────────────────────────
+    const { facing, propertyAge, possession, tenantPref } = req.query;
+    if (facing) {
+      const vals = facing.split(',').map(f => f.trim()).filter(Boolean);
+      if (vals.length) filter.facing = vals.length === 1 ? vals[0] : { $in: vals };
+    }
+
+    // ── Property Age ──────────────────────────────────────────────────────────
+    if (propertyAge) filter.propertyAge = propertyAge;
+
+    // ── Possession / Available From ───────────────────────────────────────────
+    if (possession) filter.availableFrom = possession;
+
+    // ── Preferred Tenant ──────────────────────────────────────────────────────
+    if (tenantPref) filter.preferredTenant = tenantPref;
 
     // ── Status (Ready to Move / Under Construction …) ─────────────────────────
     if (status && status !== 'Any') filter.status = status;

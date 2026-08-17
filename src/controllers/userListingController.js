@@ -438,6 +438,7 @@ export const updateListingStatus = async (req, res) => {
           location:    listing.locality || listing.city || 'Pune',
           city:        listing.city || 'Pune',
           locality:    listing.locality || '',
+          bhkType:     listing.bhkType || '',        // "1 BHK", "1 RK" exact string — filter ke liye
           bedrooms:    parseBhk(listing.bhkType),  // "3 BHK" → 3 ✅
           bathrooms:   toNum(listing.bathrooms),
           area:        toNum(listing.area || listing.carpetArea),
