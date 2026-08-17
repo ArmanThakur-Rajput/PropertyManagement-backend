@@ -46,11 +46,26 @@ export const getAllProperties = async (req, res) => {
       filter.listingType = normalised;
     }
 
-    // ── Property type (Villa, Apartment, Commercial, Plot …) ────────────────────
+    // ── Property type filter ─────────────────────────────────────────────────
     // ?type= is used by frontend sidebar; ?propertyType= is sent by Hero search
+    // Admin listings: type field | User listings: propertyType field — check both
     const { propertyType } = req.query;
     const resolvedType = propertyType || type;
-    if (resolvedType && resolvedType !== 'All') filter.type = resolvedType;
+    if (resolvedType && resolvedType !== 'All') {
+      const typeConditions = [
+        { type: resolvedType },
+        { propertyType: resolvedType },
+      ];
+      if (filter.$and) {
+        filter.$and.push({ $or: typeConditions });
+      } else if (filter.$or) {
+        const existing = filter.$or;
+        delete filter.$or;
+        filter.$and = [{ $or: existing }, { $or: typeConditions }];
+      } else {
+        filter.$or = typeConditions;
+      }
+    }
 
     // ── Locality — multi-value, comma-separated ───────────────────────────────
     // Priority: locality param > legacy city param

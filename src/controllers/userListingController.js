@@ -54,7 +54,7 @@ const STEP_FIELDS = [
 // ─────────────────────────────────────────────────────────────────────────────
 export const captureLead = async (req, res) => {
   try {
-    const { ownerName, ownerPhone, ownerEmail, propertyType, adType, city } = req.body;
+    const { ownerName, ownerPhone, ownerEmail, propertyType, adType, city, userType } = req.body;
 
     if (!ownerName || !ownerPhone || !propertyType || !adType) {
       return res.status(400).json({
@@ -92,6 +92,7 @@ export const captureLead = async (req, res) => {
       propertyType,
       adType,
       city:         city || '',
+      userType:     userType === 'Broker' ? 'Broker' : 'Owner',
       status:       'draft',
       currentStep:  0,
     });
@@ -115,7 +116,7 @@ export const captureLead = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const createListing = async (req, res) => {
   try {
-    const { ownerName, ownerPhone, ownerEmail, propertyType, adType, city } = req.body;
+    const { ownerName, ownerPhone, ownerEmail, propertyType, adType, city, userType } = req.body;
 
     if (!ownerName || !ownerPhone || !propertyType || !adType) {
       return res.status(400).json({
@@ -137,6 +138,7 @@ export const createListing = async (req, res) => {
       propertyType,
       adType,
       city:        city || '',
+      userType:    userType === 'Broker' ? 'Broker' : 'Owner',
       status:      'draft',
       currentStep: 0,
     });
@@ -376,19 +378,35 @@ export const updateListingStatus = async (req, res) => {
     if (status === 'active') {
       try {
         // Map UserListing propertyType → Property type enum
+        // Residential ka subtype apartmentType se aata hai (Apartment / Independent House etc.)
         const typeMap = {
-          'Residential':  listing.bhkType ? 'Apartment' : 'Apartment',
-          'Commercial':   'Commercial',
-          'Plot/Villa':   'Villa',
-          'Plot':         'Plot',
-          'Villa':        'Villa',
+          'Residential': listing.apartmentType || 'Apartment',
+          'Commercial':  listing.commercialPropertyType || 'Commercial',
+          'Plot':        'Plot',
+          'Villa':       listing.villaType ? 'Villa' : 'Villa',
+          'Plot/Villa':  'Villa',
         };
         const mappedType = typeMap[listing.propertyType] || 'Apartment';
 
+        // Map adType → listingType (jo filter use karta hai)
+        // adType: Rent | Resale | PG/Hostel | Flatmates | Sale
+        const adTypeToListingType = {
+          'Rent':      'Rent',
+          'Resale':    'Resale',
+          'PG/Hostel': 'PG/Hostel',
+          'Flatmates': 'Flatmates',
+          'Sale':      'Sale',
+        };
+        const mappedListingType = adTypeToListingType[listing.adType] || listing.adType;
+
         // Build a human-readable title
         const titleParts = [
-          listing.bhkType || listing.apartmentType || listing.propertyType,
-          listing.adType === 'Rent' ? 'for Rent' : listing.adType === 'Resale' ? 'for Resale' : 'for Sale',
+          listing.bhkType || listing.villaType || listing.apartmentType || listing.propertyType,
+          listing.adType === 'Rent'      ? 'for Rent'
+          : listing.adType === 'Resale'  ? 'for Resale'
+          : listing.adType === 'PG/Hostel' ? 'PG/Hostel'
+          : listing.adType === 'Flatmates' ? 'Flatmates'
+          : 'for Sale',
           listing.locality ? `in ${listing.locality}` : listing.city ? `in ${listing.city}` : '',
         ].filter(Boolean);
         const title = titleParts.join(' ');
@@ -398,25 +416,41 @@ export const updateListingStatus = async (req, res) => {
         const price = parseFloat(rawPrice) || 0;
 
         // Parse numeric fields safely
-        const toNum = (v) => { const n = parseFloat(String(v || '0').replace(/[^\d.]/g, '')); return isNaN(n) ? 0 : n; };
+        const toNum = (v) => {
+          const n = parseFloat(String(v || '0').replace(/[^\d.]/g, ''));
+          return isNaN(n) ? 0 : n;
+        };
+
+        // Parse BHK correctly — "3 BHK" → 3, "1 RK" → 1
+        const parseBhk = (bhkStr) => {
+          if (!bhkStr) return 0;
+          const match = String(bhkStr).match(/^(\d+)/);
+          return match ? parseInt(match[1]) : 0;
+        };
 
         await Property.create({
           title,
-          type:        mappedType,
+          type:         mappedType,          // "Apartment" — detail page ke liye
+          propertyType: listing.propertyType, // "Residential" — filter ke liye
+          listingType:  mappedListingType,   // ← filter ke liye zaroori
           price,
           priceLabel:  listing.price || '',
           location:    listing.locality || listing.city || 'Pune',
           city:        listing.city || 'Pune',
-          bedrooms:    toNum(listing.bhkType),   // e.g. "3 BHK" → 3
+          locality:    listing.locality || '',
+          bedrooms:    parseBhk(listing.bhkType),  // "3 BHK" → 3 ✅
           bathrooms:   toNum(listing.bathrooms),
           area:        toNum(listing.area || listing.carpetArea),
           parking:     toNum(listing.parking),
-          image:       (listing.images && listing.images.length > 0) ? listing.images[0] : '',
-          images:      listing.images || [],
-          amenities:   listing.amenities || [],
-          description: listing.description || listing.additionalNotes || '',
           furnishing:  listing.furnishing || '',
           facing:      listing.facing || '',
+          propertyAge: listing.propertyAge || '',
+          availableFrom: listing.availableFrom || '',
+          preferredTenant: listing.preferredTenant || '',
+          amenities:   listing.amenities || [],
+          description: listing.description || listing.additionalNotes || '',
+          image:       (listing.images && listing.images.length > 0) ? listing.images[0] : '',
+          images:      listing.images || [],
           status:      'Ready to Move',
           isActive:    true,
           badge:       'New',
