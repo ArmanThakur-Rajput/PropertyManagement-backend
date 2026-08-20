@@ -201,6 +201,26 @@ export const getAllProperties = async (req, res) => {
     // ── Preferred Tenant ──────────────────────────────────────────────────────
     if (tenantPref) filter.preferredTenant = tenantPref;
 
+    // ── Extended filters ──────────────────────────────────────────────────────
+    const { pgGender, roomType, pgFood, buildingType, tenantType, parkingType, minArea, maxArea } = req.query;
+    if (pgGender)     filter.pgGender    = pgGender;
+    if (roomType)     filter.roomType    = roomType;
+    if (pgFood)       filter.pgFood      = { $regex: pgFood, $options: 'i' }; // "Breakfast" matches "Breakfast,Lunch,Dinner"
+    if (buildingType) filter.buildingType = buildingType;
+    if (tenantType)   filter.tenantType  = tenantType;
+    if (parkingType)  filter.parkingType = parkingType;
+
+    // ── Area range (for commercial/plot) ─────────────────────────────────────
+    if (minArea || maxArea) {
+      filter.area = {};
+      if (minArea) filter.area.$gte = Number(minArea);
+      if (maxArea) filter.area.$lte = Number(maxArea);
+    }
+
+    // ── Parking (number) ──────────────────────────────────────────────────────
+    const { minParking } = req.query;
+    if (minParking) filter.parking = { $gte: Number(minParking) };
+
     // ── Status (Ready to Move / Under Construction …) ─────────────────────────
     if (status && status !== 'Any') filter.status = status;
 

@@ -55,6 +55,23 @@ const propertySchema = new mongoose.Schema(
 
     isActive:   { type: Boolean, default: true }, // soft-delete / unpublish
 
+    // ── User listing filter fields ─────────────────────────────────────────────
+    listingType:     { type: String, default: '' }, // Rent | Resale | PG/Hostel | Flatmates
+    propertyType:    { type: String, default: '' }, // Residential | Commercial | Plot | Villa
+    bhkType:         { type: String, default: '' }, // "1 BHK" | "1 RK" | "2 BHK" etc.
+    locality:        { type: String, default: '' },
+    propertyAge:     { type: String, default: '' },
+    availableFrom:   { type: String, default: '' },
+    preferredTenant: { type: String, default: '' },
+    pgGender:        { type: String, default: '' }, // Male | Female | Any
+    roomType:        { type: String, default: '' }, // Single | Double | Triple | Shared
+    pgFood:          { type: String, default: '' }, // None | Breakfast | Lunch | Dinner | All Meals
+    buildingType:    { type: String, default: '' }, // Commercial Building | Mall | IT Park etc.
+    tenantType:      { type: String, default: '' }, // Male | Female | Student | Professional
+    plotArea:        { type: String, default: '' }, // sqft/sqyard
+    carpetArea:      { type: String, default: '' }, // built-up area
+    parkingType:     { type: String, default: '' }, // Two Wheeler | Four Wheeler | Both | Public | Reserved
+
     // ── Who added this property ────────────────────────────────────────────────
     addedBy: {
       role: { type: String, default: '' }, // 'admin' | 'management'
@@ -76,6 +93,15 @@ propertySchema.index({ isActive: 1, location: 1 });
 
 // Default sort by newest — critical for listing page speed
 propertySchema.index({ isActive: 1, createdAt: -1 });
+
+// User listing filter indexes
+propertySchema.index({ isActive: 1, listingType: 1 });
+propertySchema.index({ isActive: 1, propertyType: 1 });
+propertySchema.index({ isActive: 1, bhkType: 1 });
+propertySchema.index({ isActive: 1, locality: 1 });
+propertySchema.index({ isActive: 1, pgGender: 1 });
+propertySchema.index({ isActive: 1, roomType: 1 });
+propertySchema.index({ isActive: 1, buildingType: 1 });
 
 // Text index for the search param (replaces slow regex on title/location/city/developer)
 propertySchema.index(

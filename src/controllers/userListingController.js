@@ -448,6 +448,15 @@ export const updateListingStatus = async (req, res) => {
           propertyAge: listing.propertyAge || '',
           availableFrom: listing.availableFrom || '',
           preferredTenant: listing.preferredTenant || '',
+          // Extended filter fields
+          pgGender:    listing.pgGender || '',
+          roomType:    listing.roomType || '',
+          pgFood:      listing.pgFood || '',
+          buildingType: listing.buildingType || '',
+          tenantType:  listing.tenantType || '',
+          plotArea:    listing.plotArea || '',
+          carpetArea:  listing.carpetArea || '',
+          parkingType: listing.parking || '',  // e.g. "Two Wheeler", "Four Wheeler", "Both"
           amenities:   listing.amenities || [],
           description: listing.description || listing.additionalNotes || '',
           image:       (listing.images && listing.images.length > 0) ? listing.images[0] : '',
