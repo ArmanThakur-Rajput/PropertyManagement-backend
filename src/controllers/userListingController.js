@@ -38,7 +38,7 @@ const STEP_FIELDS = [
   'commercialPropertyType', 'buildingType', 'otherFeatures',
   'plotLength', 'plotWidth', 'boundaryWall', 'cornerPlot',
   'floorsAllowed', 'gatedProject',
-  'city', 'locality', 'society', 'flatNo', 'landmark',
+  'city', 'locality', 'society', 'flatNo', 'landmark', 'coordinates',
   'price', 'deposit', 'pricePerSqft', 'maintenance', 'availableFrom',
   'preferredTenant', 'pgFood', 'pgGender', 'pgNotice', 'pgName',
   'loanAvailable', 'transactionType', 'underLoan',
@@ -349,6 +349,42 @@ export const getAllSubmissions = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ADMIN — PUT /api/user-listings/:id
+// Lets admin correct/fill listing fields from the review drawer before
+// verifying — e.g. fixing locality spelling, or setting the map pin
+// (coordinates) if the owner's nomination search value is missing/wrong.
+// Uses the same STEP_FIELDS whitelist as the owner's step-save, so admin
+// can only touch listing data — never status, ownerPhone, etc.
+// ─────────────────────────────────────────────────────────────────────────────
+export const updateListingFields = async (req, res) => {
+  try {
+    const update = {};
+    for (const field of STEP_FIELDS) {
+      if (field in req.body) update[field] = req.body[field];
+    }
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid fields to update' });
+    }
+
+    const listing = await UserListing.findByIdAndUpdate(
+      req.params.id,
+      { $set: update },
+      { new: true, runValidators: false }
+    );
+
+    if (!listing) {
+      return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+
+    return res.status(200).json({ success: true, listing });
+  } catch (err) {
+    console.error('updateListingFields error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ADMIN — PATCH /api/user-listings/:id/status
 // Approve (active) or reject (rejected) a submission.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -461,6 +497,11 @@ export const updateListingStatus = async (req, res) => {
           description: listing.description || listing.additionalNotes || '',
           image:       (listing.images && listing.images.length > 0) ? listing.images[0] : '',
           images:      listing.images || [],
+          // Map pin — without this, PropertyDetails falls back to a default
+          // location (Worli, Mumbai) for the map + nearby-amenities section.
+          coordinates: (listing.coordinates?.lat && listing.coordinates?.lng)
+            ? { lat: listing.coordinates.lat, lng: listing.coordinates.lng }
+            : undefined,
           status:      'Ready to Move',
           isActive:    true,
           badge:       'New',

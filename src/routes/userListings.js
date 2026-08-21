@@ -9,6 +9,7 @@ import {
   removeListing,
   getAllSubmissions,
   updateListingStatus,
+  updateListingFields,
 } from '../controllers/userListingController.js';
 import { protect, adminOnly, managementPlus } from '../middleware/auth.js';
 import rateLimit from 'express-rate-limit';
@@ -51,5 +52,9 @@ router.get('/', ...managementPlus, getAllSubmissions);
 
 // Approve / reject
 router.patch('/:id/status', ...managementPlus, updateListingStatus);
+
+// Admin edit — fix/fill listing fields (locality, coordinates, etc.)
+// from the review drawer before verifying.
+router.put('/:id', ...managementPlus, updateListingFields);
 
 export default router;

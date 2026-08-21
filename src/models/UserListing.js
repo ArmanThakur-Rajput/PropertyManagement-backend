@@ -79,6 +79,13 @@ const userListingSchema = new mongoose.Schema(
     flatNo:   { type: String, default: '' },
     landmark: { type: String, default: '' },
 
+    // Map pin — set by owner via the nomination (Nominatim/OpenStreetMap)
+    // search in the Post Ad wizard's location step.
+    coordinates: {
+      lat: { type: Number },
+      lng: { type: Number },
+    },
+
     // ── Step data: Pricing ─────────────────────────────────────────────────────
     price:           { type: String, default: '' },
     deposit:         { type: String, default: '' },
