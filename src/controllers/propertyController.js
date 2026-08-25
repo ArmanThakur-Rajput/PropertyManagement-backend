@@ -15,12 +15,13 @@ import Property from '../models/Property.js';
 const LIST_FIELDS =
   'title type listingType price priceLabel location city locality image images ' +
   'badge badgeColor status featured bedrooms bathrooms area parking ' +
-  'agent yearBuilt developer rera coordinates createdAt furnishing';
+  'agent yearBuilt developer rera coordinates createdAt furnishing bhkType preferredTenant pgGender roomType pgFood facing buildingType tenantType propertyAge plotArea availableFrom';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/properties  — buyer-facing listing with filters
 // ─────────────────────────────────────────────────────────────────────────────
 export const getAllProperties = async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   try {
     const {
       type,
@@ -71,16 +72,17 @@ export const getAllProperties = async (req, res) => {
     // Priority: locality param > legacy city param
     if (locality && locality !== 'All') {
       const locs = locality.split(',').map(l => l.trim()).filter(Boolean);
+      let locConditions;
       if (locs.length === 1) {
         // Single locality: try exact match on locality field first,
         // then fall back to regex on location string
-        filter.$or = [
+        locConditions = [
           { locality: { $regex: locs[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } },
           { location: { $regex: locs[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } },
         ];
       } else {
         // Multiple localities: $or across all
-        filter.$or = locs.flatMap(l => {
+        locConditions = locs.flatMap(l => {
           const safe = l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           return [
             { locality: { $regex: safe, $options: 'i' } },
@@ -88,14 +90,34 @@ export const getAllProperties = async (req, res) => {
           ];
         });
       }
+
+      if (filter.$and) {
+        filter.$and.push({ $or: locConditions });
+      } else if (filter.$or) {
+        const existing = filter.$or;
+        delete filter.$or;
+        filter.$and = [{ $or: existing }, { $or: locConditions }];
+      } else {
+        filter.$or = locConditions;
+      }
     } else if (city && city !== 'All') {
       // Legacy city filter (kept for backward compat)
       const safe = city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      filter.$or = [
+      const cityConditions = [
         { city:     { $regex: safe, $options: 'i' } },
         { locality: { $regex: safe, $options: 'i' } },
         { location: { $regex: safe, $options: 'i' } },
       ];
+
+      if (filter.$and) {
+        filter.$and.push({ $or: cityConditions });
+      } else if (filter.$or) {
+        const existing = filter.$or;
+        delete filter.$or;
+        filter.$and = [{ $or: existing }, { $or: cityConditions }];
+      } else {
+        filter.$or = cityConditions;
+      }
     }
 
     // ── BHK — multi-value, comma-separated ("2 BHK,3 BHK") ──────────────────
@@ -174,7 +196,8 @@ export const getAllProperties = async (req, res) => {
         'Flatmates': 'Flatmates',
         'Resale':    'Resale',
         'Rent':      'Rent',
-        'Sale':      'Sale',
+        'Sale':      'Resale',
+        'Buy':       'Resale',
       };
       filter.listingType = adTypeMap[norm] || norm;
     }
