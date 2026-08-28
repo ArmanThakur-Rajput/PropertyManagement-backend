@@ -5,7 +5,7 @@ import Otp from '../models/Otp.js';
 import Enquiry from '../models/Enquiry.js';
 import Property from '../models/Property.js';
 import { sendEmail } from '../utils/mailer.js';
-import admin from '../config/firebaseAdmin.js';
+import { getAuth } from '../config/firebaseAdmin.js';
 
 // ── Helper: sign a JWT and set it as httpOnly cookie ──────────────────────────
 const setTokenCookie = (res, userId) => {
@@ -159,7 +159,7 @@ export const verifyOtp = async (req, res) => {
     }
 
     // Firebase Admin se token verify karo
-    const decoded = await admin.auth().verifyIdToken(idToken);
+    const decoded = await getAuth().verifyIdToken(idToken);
     const rawPhone = decoded.phone_number; // format: +919876543210
 
     if (!rawPhone) {
