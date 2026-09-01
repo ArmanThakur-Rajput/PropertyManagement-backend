@@ -1,6 +1,7 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { handleChat } from '../controllers/chatController.js';
+import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -14,6 +15,7 @@ const chatLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-router.post('/', chatLimiter, handleChat);
+// protect ensures only logged-in users can consume the paid NVIDIA API
+router.post('/', chatLimiter, protect, handleChat);
 
 export default router;

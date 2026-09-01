@@ -17,6 +17,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import multer from 'multer';
 import { randomUUID } from 'crypto';
 import path from 'path';
+import { fileTypeFromBuffer } from 'file-type';
 
 // ── Build R2 client once at module load ────────────────────────────────────────
 const r2Client = new S3Client({
@@ -85,7 +86,17 @@ export const handleUpload = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
-    const { mimetype, buffer, size } = req.file;
+    const { buffer, size } = req.file;
+
+    // Verify actual file type via magic bytes — MIME header can be spoofed
+    const detected = await fileTypeFromBuffer(buffer);
+    if (!detected || !ALL_ALLOWED.has(detected.mime)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid file. Only images (JPEG/PNG/WebP/GIF) and videos (MP4/WebM/MOV/AVI) are allowed',
+      });
+    }
+    const mimetype = detected.mime;
 
     // Extra image size check (multer limit covers videos only above)
     if (ALLOWED_IMAGE_TYPES.has(mimetype) && size > IMAGE_LIMIT) {
@@ -127,15 +138,22 @@ export const handleUploadMany = async (req, res) => {
 
     const results = await Promise.all(
       req.files.map(async (f) => {
-        if (ALLOWED_IMAGE_TYPES.has(f.mimetype) && f.size > IMAGE_LIMIT) {
+        // Verify magic bytes — don't trust the MIME header from the request
+        const detected = await fileTypeFromBuffer(f.buffer);
+        if (!detected || !ALL_ALLOWED.has(detected.mime)) {
+          return { success: false, originalName: f.originalname, message: 'Invalid file type' };
+        }
+        const mime = detected.mime;
+
+        if (ALLOWED_IMAGE_TYPES.has(mime) && f.size > IMAGE_LIMIT) {
           return { success: false, originalName: f.originalname, message: 'Too large (max 10 MB)' };
         }
-        const folder = ALLOWED_VIDEO_TYPES.has(f.mimetype) ? 'listing-videos' : 'listing-images';
-        const url = await uploadToR2(f.buffer, f.mimetype, folder);
+        const folder = ALLOWED_VIDEO_TYPES.has(mime) ? 'listing-videos' : 'listing-images';
+        const url = await uploadToR2(f.buffer, mime, folder);
         return {
           success: true,
           url,
-          type: ALLOWED_VIDEO_TYPES.has(f.mimetype) ? 'video' : 'image',
+          type: ALLOWED_VIDEO_TYPES.has(mime) ? 'video' : 'image',
           originalName: f.originalname,
         };
       })

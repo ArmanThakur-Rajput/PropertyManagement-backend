@@ -210,6 +210,17 @@ export const saveStep = async (req, res) => {
 export const getMyListings = async (req, res) => {
   try {
     const phone = req.params.phone.replace(/\D/g, '').slice(-10);
+    if (!/^\d{10}$/.test(phone)) {
+      return res.status(400).json({ success: false, message: 'Invalid phone number' });
+    }
+
+    // Require a confirm param matching the phone — lightweight protection so
+    // random GET requests cannot enumerate all listings by guessing phone numbers.
+    // Full JWT protection can be added later once staff/user auth is unified.
+    const confirm = (req.query.confirm || '').replace(/\D/g, '').slice(-10);
+    if (confirm !== phone) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
 
     const listings = await UserListing.find({
       ownerPhone: phone,
@@ -227,6 +238,8 @@ export const getMyListings = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/user-listings/:id
 // Single listing detail (for resuming wizard or owner preview).
+// Requires ownerPhone query param to verify ownership — prevents anyone from
+// reading another user's private draft (name, phone, address, flat no, etc.)
 // ─────────────────────────────────────────────────────────────────────────────
 export const getListingById = async (req, res) => {
   try {
@@ -234,6 +247,13 @@ export const getListingById = async (req, res) => {
     if (!listing || listing.status === 'removed') {
       return res.status(404).json({ success: false, message: 'Listing not found' });
     }
+
+    // Ownership check — ownerPhone must be passed as query param by the frontend
+    const requestPhone = (req.query.ownerPhone || '').replace(/\D/g, '').slice(-10);
+    if (!requestPhone || requestPhone !== listing.ownerPhone) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
     return res.status(200).json({ success: true, listing });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

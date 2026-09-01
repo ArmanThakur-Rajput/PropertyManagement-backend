@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import {
   createEnquiry,
   getAllEnquiries,
@@ -12,8 +13,17 @@ import { staffOnly, leadControlPlus, managementPlus } from '../middleware/auth.j
 
 const router = express.Router();
 
+// Prevent bots from flooding enquiry submissions (5 per IP per 10 min)
+const enquiryLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  message: { success: false, message: 'Too many enquiries submitted. Please try again after 10 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Public
-router.post('/', createEnquiry);
+router.post('/', enquiryLimiter, createEnquiry);
 
 // Staff (all internal roles)
 router.get('/',           ...staffOnly,       getAllEnquiries);

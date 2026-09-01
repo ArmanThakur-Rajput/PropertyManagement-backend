@@ -40,7 +40,7 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc:  ["'self'"],
-        scriptSrc:   ["'self'", "'unsafe-inline'"],
+        scriptSrc:   ["'self'"],
         styleSrc:    ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         fontSrc:     ["'self'", 'https://fonts.gstatic.com', 'data:'],
         imgSrc:      ["'self'", 'data:', 'https:', 'blob:'],
@@ -90,7 +90,7 @@ app.use('/api/master-data',    masterDataRoutes);     // ← NEW
 
 // ── Health Check ───────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
-  res.json({ success: true, message: 'API running 🚀', env: process.env.NODE_ENV });
+  res.json({ success: true, message: 'ok' });
 });
 
 // ── 404 ────────────────────────────────────────────────────────────────────────
