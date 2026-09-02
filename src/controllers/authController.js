@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import User from '../models/User.js';
-import Otp from '../models/Otp.js';
 import Enquiry from '../models/Enquiry.js';
 import Property from '../models/Property.js';
 import { sendEmail } from '../utils/mailer.js';
@@ -38,26 +37,62 @@ const userPayload = (user) => ({
   createdAt:  user.createdAt,
 });
 
-// ── MSG91 OTP sender ──────────────────────────────────────────────────────────
-// Uses MSG91's default sender — no DLT / Sender ID registration needed
-const sendMsg91Otp = async (phone, otp) => {
-  const authKey = process.env.MSG91_AUTH_KEY;
-  if (!authKey) throw new Error('MSG91_AUTH_KEY not configured');
+// ── Message Central OTP helpers ───────────────────────────────────────────────
+// Step 1: Get auth token from Message Central
+const getMcAuthToken = async () => {
+  const customerId = process.env.MC_CUSTOMER_ID;
+  const key        = process.env.MC_PASSWORD_BASE64; // base64 of your password
+  if (!customerId || !key) throw new Error('MC_CUSTOMER_ID or MC_PASSWORD_BASE64 not configured');
 
-  const url = `https://control.msg91.com/api/v5/otp?authkey=${authKey}&mobile=91${phone}&otp=${otp}&otp_expiry=5`;
-  
-  console.log('MSG91 URL:', url); // debug
-  
-  const res = await fetch(url, { method: 'GET' });
+  const url = `https://cpaas.messagecentral.com/auth/v1/authentication/token?customerId=${customerId}&key=${key}&scope=NEW&country=91`;
+  const res  = await fetch(url, { headers: { accept: '*/*' } });
   const data = await res.json();
-  
-  console.log('MSG91 Response:', data); // debug
 
-  if (data.type === 'error') {
-    throw new Error(data.message || 'MSG91 OTP sending failed');
+  if (!data.token) throw new Error('Message Central auth failed: ' + JSON.stringify(data));
+  return data.token;
+};
+
+// Step 2: Send OTP — returns verificationId (needed for validation)
+const sendMcOtp = async (phone) => {
+  const customerId = process.env.MC_CUSTOMER_ID;
+  const authToken  = await getMcAuthToken();
+
+  const url = `https://cpaas.messagecentral.com/verification/v3/send?countryCode=91&customerId=${customerId}&flowType=SMS&mobileNumber=${phone}&otpLength=6`;
+  const res  = await fetch(url, {
+    method: 'POST',
+    headers: { authToken },
+  });
+  const data = await res.json();
+
+  console.log('Message Central sendOtp response:', data);
+
+  if (data.responseCode !== 200 || !data.data?.verificationId) {
+    throw new Error(data.message || 'Message Central OTP sending failed');
   }
 
-  return data;
+  return { authToken, verificationId: data.data.verificationId };
+};
+
+// Step 3: Validate OTP with Message Central (no MongoDB OTP store needed)
+const validateMcOtp = async (verificationId, authToken, otp) => {
+  const url = `https://cpaas.messagecentral.com/verification/v3/validateOtp?verificationId=${verificationId}&code=${otp}`;
+  const res  = await fetch(url, { headers: { authToken } });
+  const data = await res.json();
+
+  console.log('Message Central validateOtp response:', data);
+
+  // responseCode 200 + verificationStatus VERIFICATION_COMPLETED = success
+  if (
+    data.responseCode !== 200 ||
+    data.data?.verificationStatus !== 'VERIFICATION_COMPLETED'
+  ) {
+    const code = data.data?.responseCode || data.responseCode;
+    if (code === 702) throw new Error('Invalid OTP. Please check and try again.');
+    if (code === 705) throw new Error('OTP has expired. Please request a new one.');
+    throw new Error(data.message || 'OTP verification failed');
+  }
+
+  return true;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -155,23 +190,14 @@ export const sendOtp = async (req, res) => {
       }
     }
 
-    // 6-digit OTP generate karo
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
-
-    // MongoDB mein save/update karo
-    await Otp.findOneAndUpdate(
-      { target: phone },
-      { code: otp, expiresAt },
-      { upsert: true, new: true }
-    );
-
-    // MSG91 se SMS bhejo
-    await sendMsg91Otp(phone, otp);
+    // Message Central se OTP bhejo — wo khud generate karta hai
+    const { verificationId, authToken } = await sendMcOtp(phone);
 
     return res.status(200).json({
       success: true,
       message: `OTP sent to +91${phone}`,
+      verificationId, // verify ke waqt bhejni padegi
+      authToken,      // verify ke waqt bhejni padegi
     });
   } catch (error) {
     console.error('sendOtp error:', error.message);
@@ -185,10 +211,10 @@ export const sendOtp = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const verifyOtp = async (req, res) => {
   try {
-    const { phone: rawPhone, otp, mode, name, email } = req.body;
+    const { phone: rawPhone, otp, verificationId, authToken, mode, name, email } = req.body;
 
-    if (!rawPhone || !otp) {
-      return res.status(400).json({ success: false, message: 'Phone and OTP are required' });
+    if (!rawPhone || !otp || !verificationId || !authToken) {
+      return res.status(400).json({ success: false, message: 'Phone, OTP, verificationId and authToken are required' });
     }
 
     const phone = rawPhone.replace(/\D/g, '').slice(-10);
@@ -196,20 +222,8 @@ export const verifyOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid Indian mobile number' });
     }
 
-    // OTP record dhundo
-    const otpRecord = await Otp.findOne({ target: phone, code: otp });
-    if (!otpRecord) {
-      return res.status(400).json({ success: false, message: 'Invalid OTP. Please check and try again.' });
-    }
-
-    // Expiry check
-    if (otpRecord.expiresAt < new Date()) {
-      await Otp.deleteOne({ _id: otpRecord._id });
-      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
-    }
-
-    // OTP use ho gaya — delete karo
-    await Otp.deleteOne({ _id: otpRecord._id });
+    // Message Central se OTP validate karo
+    await validateMcOtp(verificationId, authToken, otp);
 
     let user;
     let isNew = false;
