@@ -17,8 +17,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import multer from 'multer';
 import { randomUUID } from 'crypto';
 import path from 'path';
-import fileType from 'file-type';
-const { fileTypeFromBuffer } = fileType;
+import FileType from 'file-type';
 
 // ── Build R2 client once at module load ────────────────────────────────────────
 const r2Client = new S3Client({
@@ -90,7 +89,7 @@ export const handleUpload = async (req, res) => {
     const { buffer, size } = req.file;
 
     // Verify actual file type via magic bytes — MIME header can be spoofed
-    const detected = await fileTypeFromBuffer(buffer);
+    const type = await FileType.fromBuffer(file.buffer);
     if (!detected || !ALL_ALLOWED.has(detected.mime)) {
       return res.status(400).json({
         success: false,
