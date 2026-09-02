@@ -89,7 +89,7 @@ export const handleUpload = async (req, res) => {
     const { buffer, size } = req.file;
 
     // Verify actual file type via magic bytes — MIME header can be spoofed
-    const type = await FileType.fromBuffer(file.buffer);
+    const type = await FileType.fromBuffer(req.file.buffer);
     if (!detected || !ALL_ALLOWED.has(detected.mime)) {
       return res.status(400).json({
         success: false,
