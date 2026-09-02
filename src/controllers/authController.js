@@ -220,8 +220,9 @@ export const sendOtp = async (req, res) => {
       return res.status(429).json({ success: false, message: rateLimitError });
     }
 
-    // APITxt se OTP bhejo
-    const { otp } = await sendApitxtOtp(phone);
+    // 🚧 TEMPORARY: API call off hai — dummy OTP use ho raha hai
+    const otp = '123456';
+    // const { otp } = await sendApitxtOtp(phone); // production mein uncomment karo
 
     // OTP in-memory store karo (5 min expiry)
     storeOtp(phone, otp);
