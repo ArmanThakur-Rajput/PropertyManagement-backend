@@ -45,9 +45,13 @@ const sendMsg91Otp = async (phone, otp) => {
   if (!authKey) throw new Error('MSG91_AUTH_KEY not configured');
 
   const url = `https://control.msg91.com/api/v5/otp?authkey=${authKey}&mobile=91${phone}&otp=${otp}&otp_expiry=5`;
-
+  
+  console.log('MSG91 URL:', url); // debug
+  
   const res = await fetch(url, { method: 'GET' });
   const data = await res.json();
+  
+  console.log('MSG91 Response:', data); // debug
 
   if (data.type === 'error') {
     throw new Error(data.message || 'MSG91 OTP sending failed');
