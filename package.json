@@ -20,7 +20,6 @@
     "express": "^4.21.1",
     "express-rate-limit": "^7.4.1",
     "file-type": "^16.5.4",
-    "firebase-admin": "^12.7.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "jwks-rsa": "^2.1.5",
