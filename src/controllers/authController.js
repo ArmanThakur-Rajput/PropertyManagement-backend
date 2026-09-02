@@ -37,61 +37,58 @@ const userPayload = (user) => ({
   createdAt:  user.createdAt,
 });
 
-// ── Message Central OTP helpers ───────────────────────────────────────────────
-// Step 1: Get auth token from Message Central
-const getMcAuthToken = async () => {
-  const customerId = process.env.MC_CUSTOMER_ID;
-  const key        = process.env.MC_PASSWORD_BASE64; // base64 of your password
-  if (!customerId || !key) throw new Error('MC_CUSTOMER_ID or MC_PASSWORD_BASE64 not configured');
+// ── APITxt OTP helpers ────────────────────────────────────────────────────────
+// APITxt: tumhe khud OTP generate karna hai, unhe bhejte ho, verify bhi khud karte ho
 
-  const url = `https://cpaas.messagecentral.com/auth/v1/authentication/token?customerId=${customerId}&key=${key}&scope=NEW&country=91`;
-  const res  = await fetch(url, { headers: { accept: '*/*' } });
-  const data = await res.json();
+// Step 1: OTP generate + send via APITxt
+const sendApitxtOtp = async (phone) => {
+  const authkey = process.env.APITXT_KEY;
+  if (!authkey) throw new Error('APITXT_KEY not configured');
 
-  if (!data.token) throw new Error('Message Central auth failed: ' + JSON.stringify(data));
-  return data.token;
-};
+  // 6-digit OTP generate karo
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
 
-// Step 2: Send OTP — returns verificationId (needed for validation)
-const sendMcOtp = async (phone) => {
-  const customerId = process.env.MC_CUSTOMER_ID;
-  const authToken  = await getMcAuthToken();
-
-  const url = `https://cpaas.messagecentral.com/verification/v3/send?countryCode=91&customerId=${customerId}&flowType=SMS&mobileNumber=${phone}&otpLength=6`;
-  const res  = await fetch(url, {
+  const res = await fetch('https://apitxt.com/api/sendOTP', {
     method: 'POST',
-    headers: { authToken },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      authkey,
+      mobile: `91${phone}`,
+      otp,
+    }),
   });
+
   const data = await res.json();
+  console.log('APITxt sendOTP response:', data);
 
-  console.log('Message Central sendOtp response:', data);
-
-  if (data.responseCode !== 200 || !data.data?.verificationId) {
-    throw new Error(data.message || 'Message Central OTP sending failed');
+  if (data.status !== 'success') {
+    throw new Error(data.message || 'APITxt OTP sending failed');
   }
 
-  return { authToken, verificationId: data.data.verificationId };
+  return { otp, requestId: data.data?.request_id };
 };
 
-// Step 3: Validate OTP with Message Central (no MongoDB OTP store needed)
-const validateMcOtp = async (verificationId, authToken, otp) => {
-  const url = `https://cpaas.messagecentral.com/verification/v3/validateOtp?verificationId=${verificationId}&code=${otp}`;
-  const res  = await fetch(url, { headers: { authToken } });
-  const data = await res.json();
+// Step 2: Verify OTP — MongoDB mein stored OTP se match karo
+// (APITxt khud verify nahi karta, hum compare karte hain)
+// OTP store in-memory (ya tum Otp model use kar sakte ho)
+const otpStore = new Map(); // phone → { otp, expiresAt }
 
-  console.log('Message Central validateOtp response:', data);
+const storeOtp = (phone, otp) => {
+  otpStore.set(phone, {
+    otp,
+    expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
+  });
+};
 
-  // responseCode 200 + verificationStatus VERIFICATION_COMPLETED = success
-  if (
-    data.responseCode !== 200 ||
-    data.data?.verificationStatus !== 'VERIFICATION_COMPLETED'
-  ) {
-    const code = data.data?.responseCode || data.responseCode;
-    if (code === 702) throw new Error('Invalid OTP. Please check and try again.');
-    if (code === 705) throw new Error('OTP has expired. Please request a new one.');
-    throw new Error(data.message || 'OTP verification failed');
+const verifyStoredOtp = (phone, otp) => {
+  const entry = otpStore.get(phone);
+  if (!entry) throw new Error('OTP not found. Please request a new one.');
+  if (Date.now() > entry.expiresAt) {
+    otpStore.delete(phone);
+    throw new Error('OTP has expired. Please request a new one.');
   }
-
+  if (entry.otp !== otp) throw new Error('Invalid OTP. Please check and try again.');
+  otpStore.delete(phone); // use ho gaya — delete karo
   return true;
 };
 
@@ -157,9 +154,36 @@ export const signIn = async (req, res) => {
   }
 };
 
+// ── Rate Limit Store (in-memory) ─────────────────────────────────────────────
+// Per phone: max 3 OTP requests per 10 minutes
+const otpRateLimit = new Map(); // phone → { count, firstRequestAt }
+
+const checkRateLimit = (phone) => {
+  const now      = Date.now();
+  const window   = 10 * 60 * 1000; // 10 minutes
+  const maxRetry = 3;
+
+  const entry = otpRateLimit.get(phone);
+
+  if (!entry || now - entry.firstRequestAt > window) {
+    otpRateLimit.set(phone, { count: 1, firstRequestAt: now });
+    return null; // allowed
+  }
+
+  if (entry.count >= maxRetry) {
+    const retryAfter = Math.ceil((window - (now - entry.firstRequestAt)) / 1000);
+    const mins = Math.ceil(retryAfter / 60);
+    const msg  = mins > 1 ? `${mins} minutes` : `${retryAfter} seconds`;
+    return `Too many OTP requests. Please try again in ${msg}.`;
+  }
+
+  entry.count += 1;
+  return null; // allowed
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/otp/send
-// MSG91 se OTP bhejta hai, MongoDB mein store karta hai
+// Message Central se OTP bhejta hai
 // ─────────────────────────────────────────────────────────────────────────────
 export const sendOtp = async (req, res) => {
   try {
@@ -190,14 +214,21 @@ export const sendOtp = async (req, res) => {
       }
     }
 
-    // Message Central se OTP bhejo — wo khud generate karta hai
-    const { verificationId, authToken } = await sendMcOtp(phone);
+    // Rate limit check
+    const rateLimitError = checkRateLimit(phone);
+    if (rateLimitError) {
+      return res.status(429).json({ success: false, message: rateLimitError });
+    }
+
+    // APITxt se OTP bhejo
+    const { otp } = await sendApitxtOtp(phone);
+
+    // OTP in-memory store karo (5 min expiry)
+    storeOtp(phone, otp);
 
     return res.status(200).json({
       success: true,
       message: `OTP sent to +91${phone}`,
-      verificationId, // verify ke waqt bhejni padegi
-      authToken,      // verify ke waqt bhejni padegi
     });
   } catch (error) {
     console.error('sendOtp error:', error.message);
@@ -211,10 +242,10 @@ export const sendOtp = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const verifyOtp = async (req, res) => {
   try {
-    const { phone: rawPhone, otp, verificationId, authToken, mode, name, email } = req.body;
+    const { phone: rawPhone, otp, mode, name, email } = req.body;
 
-    if (!rawPhone || !otp || !verificationId || !authToken) {
-      return res.status(400).json({ success: false, message: 'Phone, OTP, verificationId and authToken are required' });
+    if (!rawPhone || !otp) {
+      return res.status(400).json({ success: false, message: 'Phone and OTP are required' });
     }
 
     const phone = rawPhone.replace(/\D/g, '').slice(-10);
@@ -222,8 +253,8 @@ export const verifyOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid Indian mobile number' });
     }
 
-    // Message Central se OTP validate karo
-    await validateMcOtp(verificationId, authToken, otp);
+    // In-memory OTP verify karo
+    verifyStoredOtp(phone, otp);
 
     let user;
     let isNew = false;
