@@ -80,6 +80,7 @@ async function uploadToR2(buffer, mimetype, folder = 'listings') {
 }
 
 // ── POST /api/upload ───────────────────────────────────────────────────────────
+// ── POST /api/upload ───────────────────────────────────────────────────────────
 export const handleUpload = async (req, res) => {
   try {
     if (!req.file) {
@@ -89,16 +90,18 @@ export const handleUpload = async (req, res) => {
     const { buffer, size } = req.file;
 
     // Verify actual file type via magic bytes — MIME header can be spoofed
-    const type = await FileType.fromBuffer(req.file.buffer);
+    const detected = await FileType.fromBuffer(buffer);
+
     if (!detected || !ALL_ALLOWED.has(detected.mime)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid file. Only images (JPEG/PNG/WebP/GIF) and videos (MP4/WebM/MOV/AVI) are allowed',
       });
     }
+
     const mimetype = detected.mime;
 
-    // Extra image size check (multer limit covers videos only above)
+    // Extra image size check
     if (ALLOWED_IMAGE_TYPES.has(mimetype) && size > IMAGE_LIMIT) {
       return res.status(400).json({
         success: false,
@@ -106,7 +109,10 @@ export const handleUpload = async (req, res) => {
       });
     }
 
-    const folder = ALLOWED_VIDEO_TYPES.has(mimetype) ? 'listing-videos' : 'listing-images';
+    const folder = ALLOWED_VIDEO_TYPES.has(mimetype)
+      ? 'listing-videos'
+      : 'listing-images';
+
     const url = await uploadToR2(buffer, mimetype, folder);
 
     return res.status(200).json({
@@ -116,11 +122,15 @@ export const handleUpload = async (req, res) => {
     });
   } catch (err) {
     console.error('R2 Upload Error:', err);
-    return res.status(500).json({ success: false, message: 'Upload failed. Please try again.' });
+    return res.status(500).json({
+      success: false,
+      message: 'Upload failed. Please try again.',
+    });
   }
 };
 
-// ── POST /api/upload/many  (up to 10 files at once) ───────────────────────────
+
+// ── POST /api/upload/many ──────────────────────────────────────────────────────
 export const uploadManyMiddleware = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: VIDEO_LIMIT },
@@ -130,26 +140,46 @@ export const uploadManyMiddleware = multer({
   },
 }).array('files', 10);
 
+
 export const handleUploadMany = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ success: false, message: 'No files uploaded' });
+      return res.status(400).json({
+        success: false,
+        message: 'No files uploaded',
+      });
     }
 
     const results = await Promise.all(
       req.files.map(async (f) => {
-        // Verify magic bytes — don't trust the MIME header from the request
-        const detected = await fileTypeFromBuffer(f.buffer);
+
+        // Verify magic bytes — don't trust the MIME header
+        const detected = await FileType.fromBuffer(f.buffer);
+
         if (!detected || !ALL_ALLOWED.has(detected.mime)) {
-          return { success: false, originalName: f.originalname, message: 'Invalid file type' };
+          return {
+            success: false,
+            originalName: f.originalname,
+            message: 'Invalid file type',
+          };
         }
+
         const mime = detected.mime;
 
         if (ALLOWED_IMAGE_TYPES.has(mime) && f.size > IMAGE_LIMIT) {
-          return { success: false, originalName: f.originalname, message: 'Too large (max 10 MB)' };
+          return {
+            success: false,
+            originalName: f.originalname,
+            message: 'Too large (max 10 MB)',
+          };
         }
-        const folder = ALLOWED_VIDEO_TYPES.has(mime) ? 'listing-videos' : 'listing-images';
+
+        const folder = ALLOWED_VIDEO_TYPES.has(mime)
+          ? 'listing-videos'
+          : 'listing-images';
+
         const url = await uploadToR2(f.buffer, mime, folder);
+
         return {
           success: true,
           url,
@@ -159,9 +189,17 @@ export const handleUploadMany = async (req, res) => {
       })
     );
 
-    return res.status(200).json({ success: true, results });
+    return res.status(200).json({
+      success: true,
+      results,
+    });
+
   } catch (err) {
     console.error('R2 Bulk Upload Error:', err);
-    return res.status(500).json({ success: false, message: 'Upload failed. Please try again.' });
+
+    return res.status(500).json({
+      success: false,
+      message: 'Upload failed. Please try again.',
+    });
   }
 };
