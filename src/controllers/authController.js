@@ -5,7 +5,6 @@ import Otp from '../models/Otp.js';
 import Enquiry from '../models/Enquiry.js';
 import Property from '../models/Property.js';
 import { sendEmail } from '../utils/mailer.js';
-import { getAuth } from '../config/firebaseAdmin.js';
 
 // ── Helper: sign a JWT and set it as httpOnly cookie ──────────────────────────
 const setTokenCookie = (res, userId) => {
@@ -38,6 +37,24 @@ const userPayload = (user) => ({
   isActive:   user.isActive,
   createdAt:  user.createdAt,
 });
+
+// ── MSG91 OTP sender ──────────────────────────────────────────────────────────
+// Uses MSG91's default sender — no DLT / Sender ID registration needed
+const sendMsg91Otp = async (phone, otp) => {
+  const authKey = process.env.MSG91_AUTH_KEY;
+  if (!authKey) throw new Error('MSG91_AUTH_KEY not configured');
+
+  const url = `https://control.msg91.com/api/v5/otp?authkey=${authKey}&mobile=91${phone}&otp=${otp}&otp_expiry=5`;
+
+  const res = await fetch(url, { method: 'GET' });
+  const data = await res.json();
+
+  if (data.type === 'error') {
+    throw new Error(data.message || 'MSG91 OTP sending failed');
+  }
+
+  return data;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/signin
@@ -103,7 +120,7 @@ export const signIn = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/otp/send
-// Ab sirf ek dummy response deta hai — real OTP Firebase frontend se bhejta hai
+// MSG91 se OTP bhejta hai, MongoDB mein store karta hai
 // ─────────────────────────────────────────────────────────────────────────────
 export const sendOtp = async (req, res) => {
   try {
@@ -118,7 +135,7 @@ export const sendOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Enter a valid 10-digit Indian mobile number' });
     }
 
-    // Check database by phone
+    // User existence check based on mode
     const user = await User.findOne({ phone });
 
     if (mode === 'login') {
@@ -134,43 +151,61 @@ export const sendOtp = async (req, res) => {
       }
     }
 
-    // Firebase OTP frontend se bheja jaayega — backend sirf ok deta hai
+    // 6-digit OTP generate karo
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+    // MongoDB mein save/update karo
+    await Otp.findOneAndUpdate(
+      { target: phone },
+      { code: otp, expiresAt },
+      { upsert: true, new: true }
+    );
+
+    // MSG91 se SMS bhejo
+    await sendMsg91Otp(phone, otp);
+
     return res.status(200).json({
       success: true,
-      message: `OTP will be sent to +91${phone} via Firebase`,
-      useFirebase: true,
+      message: `OTP sent to +91${phone}`,
     });
   } catch (error) {
     console.error('sendOtp error:', error.message);
-    return res.status(500).json({ success: false, message: 'Something went wrong. Please try again.' });
+    return res.status(500).json({ success: false, message: error.message || 'OTP sending failed. Please try again.' });
   }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/otp/verify
-// Firebase idToken se verify karta hai — MongoDB OTP ki zarurat nahi
+// MongoDB se OTP verify karo, user create/login karo
 // ─────────────────────────────────────────────────────────────────────────────
 export const verifyOtp = async (req, res) => {
   try {
-    const { idToken, mode, name, email } = req.body;
+    const { phone: rawPhone, otp, mode, name, email } = req.body;
 
-    if (!idToken) {
-      return res.status(400).json({ success: false, message: 'Firebase ID token is required' });
+    if (!rawPhone || !otp) {
+      return res.status(400).json({ success: false, message: 'Phone and OTP are required' });
     }
 
-    // Firebase Admin se token verify karo
-    const decoded = await getAuth().verifyIdToken(idToken);
-    const rawPhone = decoded.phone_number; // format: +919876543210
-
-    if (!rawPhone) {
-      return res.status(400).json({ success: false, message: 'Phone number not found in token' });
-    }
-
-    const phone = rawPhone.replace('+91', '').replace(/\D/g, '');
-
+    const phone = rawPhone.replace(/\D/g, '').slice(-10);
     if (!/^[6-9]\d{9}$/.test(phone)) {
-      return res.status(400).json({ success: false, message: 'Invalid Indian mobile number in token' });
+      return res.status(400).json({ success: false, message: 'Invalid Indian mobile number' });
     }
+
+    // OTP record dhundo
+    const otpRecord = await Otp.findOne({ target: phone, code: otp });
+    if (!otpRecord) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP. Please check and try again.' });
+    }
+
+    // Expiry check
+    if (otpRecord.expiresAt < new Date()) {
+      await Otp.deleteOne({ _id: otpRecord._id });
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
+    }
+
+    // OTP use ho gaya — delete karo
+    await Otp.deleteOne({ _id: otpRecord._id });
 
     let user;
     let isNew = false;
@@ -538,7 +573,7 @@ export const deleteUser = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /api/auth/otp/send-phone  (email OTP flow — unchanged)
+// POST /api/auth/otp/send-phone  (email OTP fallback — unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
 export const sendPhoneOtp = async (req, res) => {
   try {
@@ -578,7 +613,7 @@ export const sendPhoneOtp = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /api/auth/otp/verify-phone  (email OTP flow — unchanged)
+// POST /api/auth/otp/verify-phone  (email OTP fallback — unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
 export const verifyPhoneOtp = async (req, res) => {
   try {
