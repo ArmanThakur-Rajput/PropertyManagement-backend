@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import User from '../models/User.js';
+import Otp from '../models/Otp.js';
 import Enquiry from '../models/Enquiry.js';
 import Property from '../models/Property.js';
 import { sendEmail } from '../utils/mailer.js';
@@ -70,25 +71,27 @@ const sendApitxtOtp = async (phone) => {
 
 // Step 2: Verify OTP — MongoDB mein stored OTP se match karo
 // (APITxt khud verify nahi karta, hum compare karte hain)
-// OTP store in-memory (ya tum Otp model use kar sakte ho)
-const otpStore = new Map(); // phone → { otp, expiresAt }
+// OTP helpers — MongoDB (Otp model) use karte hain, in-memory nahi
+// Server restart / multiple instances pe bhi kaam karega
 
-const storeOtp = (phone, otp) => {
-  otpStore.set(phone, {
-    otp,
-    expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
-  });
+const storeOtp = async (phone, otp) => {
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+  await Otp.findOneAndUpdate(
+    { target: phone },
+    { code: otp, expiresAt },
+    { upsert: true, new: true }
+  );
 };
 
-const verifyStoredOtp = (phone, otp) => {
-  const entry = otpStore.get(phone);
-  if (!entry) throw new Error('OTP not found. Please request a new one.');
-  if (Date.now() > entry.expiresAt) {
-    otpStore.delete(phone);
+const verifyStoredOtp = async (phone, otp) => {
+  const record = await Otp.findOne({ target: phone });
+  if (!record) throw new Error('OTP not found. Please request a new one.');
+  if (record.expiresAt < new Date()) {
+    await Otp.deleteOne({ _id: record._id });
     throw new Error('OTP has expired. Please request a new one.');
   }
-  if (entry.otp !== otp) throw new Error('Invalid OTP. Please check and try again.');
-  otpStore.delete(phone); // use ho gaya — delete karo
+  if (record.code !== otp) throw new Error('Invalid OTP. Please check and try again.');
+  await Otp.deleteOne({ _id: record._id }); // use ho gaya — delete karo
   return true;
 };
 
@@ -224,8 +227,8 @@ export const sendOtp = async (req, res) => {
     const otp = '123456';
     // const { otp } = await sendApitxtOtp(phone); // production mein uncomment karo
 
-    // OTP in-memory store karo (5 min expiry)
-    storeOtp(phone, otp);
+    // OTP MongoDB mein store karo (5 min expiry)
+    await storeOtp(phone, otp);
 
     return res.status(200).json({
       success: true,
@@ -254,8 +257,8 @@ export const verifyOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid Indian mobile number' });
     }
 
-    // In-memory OTP verify karo
-    verifyStoredOtp(phone, otp);
+    // MongoDB OTP verify karo
+    await verifyStoredOtp(phone, otp);
 
     let user;
     let isNew = false;
@@ -634,13 +637,7 @@ export const sendPhoneOtp = async (req, res) => {
     }
 
     const code = String(Math.floor(100000 + Math.random() * 900000));
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-    await Otp.findOneAndUpdate(
-      { target: phone },
-      { code, expiresAt },
-      { upsert: true, new: true }
-    );
+    await storeOtp(phone, code);
 
     if (email && /\S+@\S+\.\S+/.test(email)) {
       await sendEmail({

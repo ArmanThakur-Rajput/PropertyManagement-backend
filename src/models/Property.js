@@ -72,6 +72,32 @@ const propertySchema = new mongoose.Schema(
     carpetArea:      { type: String, default: '' }, // built-up area
     parkingType:     { type: String, default: '' }, // Two Wheeler | Four Wheeler | Both | Public | Reserved
 
+    // ── User listing detail fields (missing before, now added) ────────────────
+    floor:           { type: String, default: '' }, // e.g. "3"
+    totalFloor:      { type: String, default: '' }, // e.g. "10"
+    ownershipType:   { type: String, default: '' }, // Self Owned | On Lease
+    floorType:       { type: String, default: '' }, // Tiles | Marble | Wooden | Cement
+    balconies:       { type: String, default: '' }, // "0" | "1" | "2" | "3+"
+    pricePerSqft:    { type: String, default: '' }, // e.g. "7000"
+    maintenance:     { type: String, default: '' }, // monthly maintenance charges
+    deposit:         { type: String, default: '' }, // security deposit
+    pgNotice:        { type: String, default: '' }, // 15 Days | 1 Month | 2 Months
+    pgRooms:         [{ type: String }],            // ["Single","Double","Triple","Shared"]
+    visitTime:       { type: String, default: '' }, // Morning | Afternoon | Evening | Anytime
+    visitDays:       [{ type: String }],            // ["Mon","Tue",...]
+    scheduleNotes:   { type: String, default: '' },
+    // Plot-specific
+    plotLength:      { type: String, default: '' },
+    plotWidth:       { type: String, default: '' },
+    boundaryWall:    { type: String, default: '' }, // Yes | No
+    cornerPlot:      { type: String, default: '' }, // Yes | No
+    floorsAllowed:   { type: String, default: '' }, // G | G+1 | G+2 ...
+    gatedProject:    { type: String, default: '' }, // Yes | No
+    // Villa-specific
+    villaType:       { type: String, default: '' }, // Independent | Gated Community | Duplex | Row
+    // Commercial-specific
+    otherFeatures:   [{ type: String }],            // ["On Main Road","Corner Property"]
+
     // ── Who added this property ────────────────────────────────────────────────
     addedBy: {
       role: { type: String, default: '' }, // 'admin' | 'management'

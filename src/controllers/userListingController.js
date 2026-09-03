@@ -68,9 +68,12 @@ export const captureLead = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Enter a valid 10-digit mobile number' });
     }
 
-    // ── Check for existing active draft for this phone ────────────────────────
+    // ── Check for existing active draft — same phone + same propertyType + adType ──
+    // Sirf matching type ka draft resume hoga; alag type pe naya draft banega
     const existingDraft = await UserListing.findOne({
       ownerPhone: phone,
+      propertyType,
+      adType,
       status: 'draft',
     }).sort({ updatedAt: -1 }).lean();
 
@@ -498,7 +501,12 @@ export const updateListingStatus = async (req, res) => {
           bedrooms:    parseBhk(listing.bhkType),  // "3 BHK" → 3 ✅
           bathrooms:   toNum(listing.bathrooms),
           area:        toNum(listing.area || listing.carpetArea),
-          parking:     toNum(listing.parking),
+          // parking (Number) — only meaningful if owner sets a numeric count (admin listings).
+          // For user listings, parking value is a string ("Two Wheeler"/"Four Wheeler"/"Both"/"None")
+          // so toNum() gives 0; that's acceptable. The actual filter uses parkingType (String).
+          parking:     ['Two Wheeler','Four Wheeler','Both','None',''].includes(listing.parking || '')
+                         ? 0
+                         : toNum(listing.parking),
           furnishing:  listing.furnishing || '',
           facing:      listing.facing || '',
           propertyAge: listing.propertyAge || '',
@@ -513,6 +521,32 @@ export const updateListingStatus = async (req, res) => {
           plotArea:    listing.plotArea || '',
           carpetArea:  listing.carpetArea || '',
           parkingType: listing.parking || '',  // e.g. "Two Wheeler", "Four Wheeler", "Both"
+          // ── Detail fields (previously missing) ──────────────────────────────
+          floor:         listing.floor        || '',
+          totalFloor:    listing.totalFloor   || '',
+          ownershipType: listing.ownershipType || '',
+          floorType:     listing.floorType    || '',
+          balconies:     listing.balconies    || '',
+          pricePerSqft:  listing.pricePerSqft || '',
+          maintenance:   listing.maintenance  || '',
+          deposit:       listing.deposit      || '',
+          pgNotice:      listing.pgNotice     || '',
+          pgRooms:       listing.pgRooms      || [],
+          visitTime:     listing.visitTime    || '',
+          visitDays:     listing.visitDays    || [],
+          scheduleNotes: listing.scheduleNotes || '',
+          // Plot-specific
+          plotLength:    listing.plotLength   || '',
+          plotWidth:     listing.plotWidth    || '',
+          boundaryWall:  listing.boundaryWall || '',
+          cornerPlot:    listing.cornerPlot   || '',
+          floorsAllowed: listing.floorsAllowed || '',
+          gatedProject:  listing.gatedProject  || '',
+          // Villa-specific
+          villaType:     listing.villaType    || '',
+          // Commercial-specific
+          otherFeatures: listing.otherFeatures || [],
+          // ────────────────────────────────────────────────────────────────────
           amenities:   listing.amenities || [],
           description: listing.description || listing.additionalNotes || '',
           image:       (listing.images && listing.images.length > 0) ? listing.images[0] : '',

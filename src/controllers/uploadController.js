@@ -59,11 +59,22 @@ export const uploadMiddleware = multer({
 }).single('file');  // field name: "file"
 
 // ── Helper: upload buffer → R2 ────────────────────────────────────────────────
+// MIME → extension map (path.extname approach kaam nahi karta MIME strings pe)
+const MIME_TO_EXT = {
+  'image/jpeg':      '.jpg',
+  'image/jpg':       '.jpg',
+  'image/png':       '.png',
+  'image/webp':      '.webp',
+  'image/gif':       '.gif',
+  'video/mp4':       '.mp4',
+  'video/webm':      '.webm',
+  'video/quicktime': '.mov',
+  'video/x-msvideo': '.avi',
+};
+
 async function uploadToR2(buffer, mimetype, folder = 'listings') {
   const isImage = ALLOWED_IMAGE_TYPES.has(mimetype);
-  const ext = path.extname(
-    mimetype.replace('image/', '.').replace('video/', '.')
-  ) || (isImage ? '.jpg' : '.mp4');
+  const ext = MIME_TO_EXT[mimetype] || (isImage ? '.jpg' : '.mp4');
 
   const key = `${folder}/${randomUUID()}${ext}`;
 
