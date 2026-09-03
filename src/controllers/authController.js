@@ -456,7 +456,7 @@ export const toggleWishlist = async (req, res) => {
     if (!propertyId) {
       return res.status(400).json({ success: false, message: 'Property ID is required' });
     }
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
     const index = user.wishlist.indexOf(propertyId);
@@ -466,7 +466,7 @@ export const toggleWishlist = async (req, res) => {
       user.wishlist.push(propertyId);
     }
     await user.save();
-    const populated = await User.findById(req.user.id).populate('wishlist');
+    const populated = await User.findById(req.user._id).populate('wishlist');
     return res.status(200).json({ success: true, wishlist: populated.wishlist });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -475,7 +475,7 @@ export const toggleWishlist = async (req, res) => {
 
 export const getWishlist = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).populate('wishlist');
+    const user = await User.findById(req.user._id).populate('wishlist');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
     return res.status(200).json({ success: true, wishlist: user.wishlist });
   } catch (error) {
