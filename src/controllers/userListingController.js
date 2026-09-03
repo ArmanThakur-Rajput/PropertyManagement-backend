@@ -36,6 +36,7 @@ const STEP_FIELDS = [
   'area', 'carpetArea', 'furnishing',
   'pgRooms', 'roomType', 'tenantType',
   'commercialPropertyType', 'buildingType', 'otherFeatures',
+  'villaType', 'plotArea', 'leaseDuration', 'lockInPeriod', 'possessionStatus',
   'plotLength', 'plotWidth', 'boundaryWall', 'cornerPlot',
   'floorsAllowed', 'gatedProject',
   'city', 'locality', 'society', 'flatNo', 'landmark', 'coordinates',
@@ -497,6 +498,9 @@ export const updateListingStatus = async (req, res) => {
           location:    listing.locality || listing.city || 'Pune',
           city:        listing.city || 'Pune',
           locality:    listing.locality || '',
+          society:     listing.society || '',
+          flatNo:      listing.flatNo || '',
+          landmark:    listing.landmark || '',
           bhkType:     listing.bhkType || '',        // "1 BHK", "1 RK" exact string — filter ke liye
           bedrooms:    parseBhk(listing.bhkType),  // "3 BHK" → 3 ✅
           bathrooms:   toNum(listing.bathrooms),
@@ -521,6 +525,21 @@ export const updateListingStatus = async (req, res) => {
           plotArea:    listing.plotArea || '',
           carpetArea:  listing.carpetArea || '',
           parkingType: listing.parking || '',  // e.g. "Two Wheeler", "Four Wheeler", "Both"
+          // Preserve the exact PostProperty values for downstream detail/edit flows.
+          commercialPropertyType: listing.commercialPropertyType || '',
+          apartmentType: listing.apartmentType || '',
+          society: listing.society || '',
+          flatNo: listing.flatNo || '',
+          landmark: listing.landmark || '',
+          pgName: listing.pgName || '',
+          userType: listing.userType || 'Owner',
+          leaseDuration: listing.leaseDuration || '',
+          lockInPeriod: listing.lockInPeriod || '',
+          possessionStatus: listing.possessionStatus || '',
+          loanAvailable: listing.loanAvailable || '',
+          transactionType: listing.transactionType || '',
+          underLoan: listing.underLoan || '',
+          additionalNotes: listing.additionalNotes || '',
           // ── Detail fields (previously missing) ──────────────────────────────
           floor:         listing.floor        || '',
           totalFloor:    listing.totalFloor   || '',
@@ -551,12 +570,17 @@ export const updateListingStatus = async (req, res) => {
           description: listing.description || listing.additionalNotes || '',
           image:       (listing.images && listing.images.length > 0) ? listing.images[0] : '',
           images:      listing.images || [],
+          videos:      listing.videos || [],
           // Map pin — without this, PropertyDetails falls back to a default
           // location (Worli, Mumbai) for the map + nearby-amenities section.
           coordinates: (listing.coordinates?.lat && listing.coordinates?.lng)
             ? { lat: listing.coordinates.lat, lng: listing.coordinates.lng }
             : undefined,
-          status:      'Ready to Move',
+          // Residential Resale status is derived from Property Age because the
+          // PostProperty flow does not ask for a separate status field.
+          status:      (listing.propertyType === 'Residential' && listing.adType === 'Resale'
+            ? (listing.propertyAge === 'Under Construction' ? 'Under Construction' : 'Ready to Move')
+            : 'Ready to Move'),
           isActive:    true,
           badge:       'New',
           badgeColor:  'green',

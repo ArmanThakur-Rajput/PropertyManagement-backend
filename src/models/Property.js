@@ -25,6 +25,7 @@ const propertySchema = new mongoose.Schema(
 
     image:      { type: String, default: '' },    // primary image URL
     images:     [{ type: String }],               // gallery
+    videos:     [{ type: String }],               // optional video URLs
 
     badge:      { type: String, default: '' },    // Featured, New Launch …
     badgeColor: { type: String, default: '' },    // gold, green, blue, red
@@ -55,17 +56,29 @@ const propertySchema = new mongoose.Schema(
 
     isActive:   { type: Boolean, default: true }, // soft-delete / unpublish
 
+    // ── User listing owner identity ───────────────────────────────────────────
+    ownerName:  { type: String, default: '' },
+    ownerPhone: { type: String, default: '' },
+    ownerEmail: { type: String, default: '' },
+
     // ── User listing filter fields ─────────────────────────────────────────────
     listingType:     { type: String, default: '' }, // Rent | Resale | PG/Hostel | Flatmates
     propertyType:    { type: String, default: '' }, // Residential | Commercial | Plot | Villa
+    apartmentType:   { type: String, default: '' },
+    commercialPropertyType: { type: String, default: '' },
+    userType:        { type: String, enum: ['Owner', 'Broker', ''], default: '' },
     bhkType:         { type: String, default: '' }, // "1 BHK" | "1 RK" | "2 BHK" etc.
     locality:        { type: String, default: '' },
+    society:         { type: String, default: '' },
+    flatNo:          { type: String, default: '' },
+    landmark:        { type: String, default: '' },
     propertyAge:     { type: String, default: '' },
     availableFrom:   { type: String, default: '' },
     preferredTenant: { type: String, default: '' },
     pgGender:        { type: String, default: '' }, // Male | Female | Any
     roomType:        { type: String, default: '' }, // Single | Double | Triple | Shared
     pgFood:          { type: String, default: '' }, // None | Breakfast | Lunch | Dinner | All Meals
+    pgName:          { type: String, default: '' },
     buildingType:    { type: String, default: '' }, // Commercial Building | Mall | IT Park etc.
     tenantType:      { type: String, default: '' }, // Male | Female | Student | Professional
     plotArea:        { type: String, default: '' }, // sqft/sqyard
@@ -93,10 +106,17 @@ const propertySchema = new mongoose.Schema(
     cornerPlot:      { type: String, default: '' }, // Yes | No
     floorsAllowed:   { type: String, default: '' }, // G | G+1 | G+2 ...
     gatedProject:    { type: String, default: '' }, // Yes | No
+    leaseDuration:   { type: String, default: '' },
+    lockInPeriod:    { type: String, default: '' },
+    possessionStatus:{ type: String, default: '' },
     // Villa-specific
     villaType:       { type: String, default: '' }, // Independent | Gated Community | Duplex | Row
     // Commercial-specific
     otherFeatures:   [{ type: String }],            // ["On Main Road","Corner Property"]
+    loanAvailable:   { type: String, default: '' },
+    transactionType: { type: String, default: '' },
+    underLoan:       { type: String, default: '' },
+    additionalNotes: { type: String, default: '' },
 
     // ── Who added this property ────────────────────────────────────────────────
     addedBy: {

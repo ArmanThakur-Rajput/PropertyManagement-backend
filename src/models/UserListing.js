@@ -20,6 +20,7 @@ const userListingSchema = new mongoose.Schema(
     ownerName:  { type: String, required: true, trim: true },
     ownerPhone: { type: String, required: true, trim: true },
     ownerEmail: { type: String, trim: true, lowercase: true, default: '' },
+    userType:   { type: String, enum: ['Owner', 'Broker'], default: 'Owner' },
 
     // ── Listing meta ───────────────────────────────────────────────────────────
     propertyType: {
@@ -71,6 +72,9 @@ const userListingSchema = new mongoose.Schema(
     cornerPlot:             { type: String, default: '' },
     floorsAllowed:          { type: String, default: '' },
     gatedProject:           { type: String, default: '' },
+    leaseDuration:          { type: String, default: '' },
+    lockInPeriod:           { type: String, default: '' },
+    possessionStatus:       { type: String, default: '' },
 
     // ── Step data: Location ────────────────────────────────────────────────────
     city:     { type: String, default: '' },
