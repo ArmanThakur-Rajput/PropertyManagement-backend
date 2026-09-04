@@ -230,13 +230,14 @@ export const getAllProperties = async (req, res) => {
     if (tenantPref) filter.preferredTenant = tenantPref;
 
     // ── Extended filters ──────────────────────────────────────────────────────
-    const { pgGender, roomType, pgFood, buildingType, tenantType, parkingType, minArea, maxArea } = req.query;
+    const { pgGender, roomType, pgFood, buildingType, tenantType, parkingType, commercialPropertyType, minArea, maxArea } = req.query;
     if (pgGender)     filter.pgGender    = pgGender;
     if (roomType)     filter.roomType    = roomType;
     if (pgFood)       filter.pgFood      = { $regex: pgFood, $options: 'i' }; // "Breakfast" matches "Breakfast,Lunch,Dinner"
     if (buildingType) filter.buildingType = buildingType;
     if (tenantType)   filter.tenantType  = tenantType;
     if (parkingType)  filter.parkingType = parkingType;
+    if (commercialPropertyType) filter.commercialPropertyType = commercialPropertyType;
 
     // ── Area range (for commercial/plot) ─────────────────────────────────────
     if (minArea || maxArea) {
