@@ -16,7 +16,7 @@ const LIST_FIELDS =
   'title type propertyType listingType price priceLabel location city locality image images ' +
   'badge badgeColor status featured bedrooms bathrooms area parking parkingType ' +
   'agent yearBuilt developer rera coordinates createdAt furnishing bhkType preferredTenant pgGender roomType pgFood facing buildingType tenantType propertyAge plotArea availableFrom pgRooms ' +
-  'cornerPlot boundaryWall gatedProject floorsAllowed plotLength plotWidth';
+  'cornerPlot boundaryWall gatedProject floorsAllowed plotLength plotWidth villaType';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/properties  — buyer-facing listing with filters
