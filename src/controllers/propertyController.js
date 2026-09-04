@@ -53,9 +53,13 @@ export const getAllProperties = async (req, res) => {
     const { propertyType } = req.query;
     const resolvedType = propertyType || type;
     if (resolvedType && resolvedType !== 'All') {
+      // "Land/Plot" frontend label → DB stores "Plot" in type field
+      const dbType = resolvedType === 'Land/Plot' ? 'Plot' : resolvedType;
       const typeConditions = [
+        { type: dbType },
         { type: resolvedType },
         { propertyType: resolvedType },
+        { propertyType: dbType },
       ];
       if (filter.$and) {
         filter.$and.push({ $or: typeConditions });
