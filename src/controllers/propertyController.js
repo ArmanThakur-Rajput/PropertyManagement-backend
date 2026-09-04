@@ -196,7 +196,7 @@ export const getAllProperties = async (req, res) => {
         'Flatmates': 'Flatmates',
         'Resale':    'Resale',
         'Rent':      'Rent',
-        'Sale':      'Resale',
+        'Sale':      'Sale',
         'Buy':       'Resale',
       };
       filter.listingType = adTypeMap[norm] || norm;
