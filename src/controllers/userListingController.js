@@ -576,9 +576,9 @@ export const updateListingStatus = async (req, res) => {
           coordinates: (listing.coordinates?.lat && listing.coordinates?.lng)
             ? { lat: listing.coordinates.lat, lng: listing.coordinates.lng }
             : undefined,
-          // Residential Resale status is derived from Property Age because the
+          // Residential status (Rent + Resale) is derived from Property Age because the
           // PostProperty flow does not ask for a separate status field.
-          status:      (listing.propertyType === 'Residential' && listing.adType === 'Resale'
+          status:      (listing.propertyType === 'Residential'
             ? (listing.propertyAge === 'Under Construction' ? 'Under Construction' : 'Ready to Move')
             : 'Ready to Move'),
           isActive:    true,
