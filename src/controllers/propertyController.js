@@ -14,7 +14,7 @@ import Property from '../models/Property.js';
 
 const LIST_FIELDS =
   'title type listingType price priceLabel location city locality image images ' +
-  'badge badgeColor status featured bedrooms bathrooms area parking ' +
+  'badge badgeColor status featured bedrooms bathrooms area parking parkingType ' +
   'agent yearBuilt developer rera coordinates createdAt furnishing bhkType preferredTenant pgGender roomType pgFood facing buildingType tenantType propertyAge plotArea availableFrom';
 
 // ─────────────────────────────────────────────────────────────────────────────
