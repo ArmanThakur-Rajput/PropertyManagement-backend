@@ -230,9 +230,18 @@ export const getAllProperties = async (req, res) => {
     if (tenantPref) filter.preferredTenant = tenantPref;
 
     // ── Extended filters ──────────────────────────────────────────────────────
-    const { pgGender, roomType, pgFood, buildingType, tenantType, parkingType, commercialPropertyType, minArea, maxArea } = req.query;
+    const { pgGender, roomType, pgRooms, pgFood, buildingType, tenantType, parkingType, commercialPropertyType, minArea, maxArea } = req.query;
     if (pgGender)     filter.pgGender    = pgGender;
     if (roomType)     filter.roomType    = roomType;
+    if (pgRooms) {
+      const vals = String(pgRooms).split(',').map(v => v.trim()).filter(Boolean);
+      if (vals.length === 1) {
+        // Mongo matches a scalar against an array field when the array contains that value.
+        filter.pgRooms = vals[0];
+      } else if (vals.length > 1) {
+        filter.pgRooms = { $in: vals };
+      }
+    }
     if (pgFood)       filter.pgFood      = { $regex: pgFood, $options: 'i' }; // "Breakfast" matches "Breakfast,Lunch,Dinner"
     if (buildingType) filter.buildingType = buildingType;
     if (tenantType)   filter.tenantType  = tenantType;
