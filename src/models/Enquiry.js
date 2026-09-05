@@ -17,7 +17,7 @@ const enquirySchema = new mongoose.Schema(
     // ── What type of enquiry ──────────────────────────────────────────────────
     type: {
       type: String,
-      enum: ['contact', 'buy', 'sell', 'lease', 'management', 'newsletter'],
+      enum: ['contact', 'buy', 'sell', 'lease', 'management', 'newsletter',"legal","painting","loan","rental"],
       required: true,
     },
 
