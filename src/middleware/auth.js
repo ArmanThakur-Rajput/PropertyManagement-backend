@@ -32,7 +32,7 @@ setInterval(() => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const protect = async (req, res, next) => {
   try {
-    const token = req.cookies?.hr_token;
+    const token = req.cookies?.hr_token || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
     if (!token) {
       return res.status(401).json({ success: false, message: 'Not authenticated' });
     }
