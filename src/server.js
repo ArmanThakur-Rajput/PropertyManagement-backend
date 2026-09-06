@@ -59,7 +59,11 @@ app.use(morgan(isProd ? 'combined' : 'dev'));
 
 // ── CORS ───────────────────────────────────────────────────────────────────────
 app.use(cors({
-  origin: true,
+  origin: [
+    'https://kinpropertymanagement.com',    
+    'https://www.kinpropertymanagement.com', 
+    
+  ],
   credentials: true,
 }));
 
