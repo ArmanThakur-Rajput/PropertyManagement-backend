@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node';
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
@@ -16,13 +17,18 @@ import blogRoutes          from './routes/blog.js';
 import uploadRoutes        from './routes/upload.js';
 import partnerRoutes       from './routes/partner.js';
 import userListingRoutes   from './routes/userListings.js';
-import testimonialsRoutes  from './routes/testimonials.js';   // ← NEW
-import faqsRoutes          from './routes/faqs.js';           // ← NEW
-import advisorsRoutes      from './routes/advisors.js';       // ← NEW
-import settingsRoutes      from './routes/settings.js';       // ← NEW
-import masterDataRoutes    from './routes/masterData.js';     // ← NEW
+import testimonialsRoutes  from './routes/testimonials.js';
+import faqsRoutes          from './routes/faqs.js';
+import advisorsRoutes      from './routes/advisors.js';
+import settingsRoutes      from './routes/settings.js';
+import masterDataRoutes    from './routes/masterData.js';
 
 const app = express();
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  environment: process.env.NODE_ENV || 'development',
+});
 
 app.set('trust proxy', 1);
 
@@ -60,9 +66,8 @@ app.use(morgan(isProd ? 'combined' : 'dev'));
 // ── CORS ───────────────────────────────────────────────────────────────────────
 app.use(cors({
   origin: [
-    'https://kinpropertymanagement.com',    
-    'https://www.kinpropertymanagement.com', 
-    
+    'https://kinpropertymanagement.com',
+    'https://www.kinpropertymanagement.com',
   ],
   credentials: true,
 }));
@@ -86,11 +91,11 @@ app.use('/api/blogs',          blogRoutes);
 app.use('/api/upload',         uploadRoutes);
 app.use('/api/partners',       partnerRoutes);
 app.use('/api/user-listings',  userListingRoutes);
-app.use('/api/testimonials',   testimonialsRoutes);   // ← NEW
-app.use('/api/faqs',           faqsRoutes);           // ← NEW
-app.use('/api/advisors',       advisorsRoutes);       // ← NEW
-app.use('/api/settings',       settingsRoutes);       // ← NEW
-app.use('/api/master-data',    masterDataRoutes);     // ← NEW
+app.use('/api/testimonials',   testimonialsRoutes);
+app.use('/api/faqs',           faqsRoutes);
+app.use('/api/advisors',       advisorsRoutes);
+app.use('/api/settings',       settingsRoutes);
+app.use('/api/master-data',    masterDataRoutes);
 
 // ── Health Check ───────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
@@ -101,6 +106,9 @@ app.get('/api/health', (_req, res) => {
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });
 });
+
+// ── Sentry Error Handler ───────────────────────────────────────────────────────
+app.use(Sentry.expressErrorHandler());
 
 // ── Global Error Handler ───────────────────────────────────────────────────────
 app.use((err, _req, res, _next) => {
