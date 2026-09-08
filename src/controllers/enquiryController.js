@@ -30,6 +30,7 @@ export const createEnquiry = async (req, res) => {
       name,
       phone,
       email: email || '',
+      userType: req.body.userType || '',
       status: 'new',
       assignedTo: null,
       assignedToName: '',
