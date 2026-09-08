@@ -122,6 +122,7 @@ const propertySchema = new mongoose.Schema(
     addedBy: {
       role: { type: String, default: '' }, // 'admin' | 'management'
       name: { type: String, default: '' }, // display name of the user
+      userType: { type: String, default: '' }, 
     },
   },
   { timestamps: true }
