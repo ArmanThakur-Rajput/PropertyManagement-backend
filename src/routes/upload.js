@@ -6,15 +6,16 @@ import {
   handleUploadMany,
 } from '../controllers/uploadController.js';
 import { protect } from '../middleware/auth.js';
+import { uploadLimiter, bulkUploadLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
 // Single file upload (image or video)
 // Frontend sends: FormData with field "file"
-router.post('/', protect, uploadMiddleware, handleUpload);
+router.post('/', uploadLimiter, protect, uploadMiddleware, handleUpload);
 
 // Bulk upload (up to 10 files)
 // Frontend sends: FormData with field "files" (multiple)
-router.post('/many', protect, uploadManyMiddleware, handleUploadMany);
+router.post('/many', bulkUploadLimiter, protect, uploadManyMiddleware, handleUploadMany);
 
 export default router;

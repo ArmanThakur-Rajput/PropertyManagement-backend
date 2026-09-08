@@ -587,7 +587,6 @@ export const updateListingStatus = async (req, res) => {
           addedBy: {
             role: 'user',
             name: listing.ownerName || '',
-            userType: listing.userType || '',
           },
         });
 

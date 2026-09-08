@@ -1,5 +1,9 @@
 import express from 'express';
-import rateLimit from 'express-rate-limit';
+import {
+  signInLimiter,
+  otpSendLimiter,
+  otpVerifyLimiter,
+} from '../middleware/rateLimiter.js';
 import {
   signIn, getMe, signOut,
   getUserByPhone, getAllUsers,
@@ -12,22 +16,17 @@ import { protect, adminOnly, managementPlus } from '../middleware/auth.js';
 
 const router = express.Router();
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // Limit each IP to 20 requests per window
-  message: { success: false, message: 'Too many sign-in attempts. Please try again after 15 minutes.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+;
 
 // Public
-router.post('/signin',           authLimiter, signIn);
-router.post('/otp/send',         authLimiter, sendOtp);
-router.post('/otp/verify',       authLimiter, verifyOtp);
-router.post('/otp/send-phone',    authLimiter, sendPhoneOtp);
-router.post('/otp/verify-phone',  authLimiter, verifyPhoneOtp);
-router.post('/social',           authLimiter, socialSignIn);
-router.post('/google/callback',  authLimiter, googleCallback);
+router.post('/signin',           signInLimiter, signIn);
+router.post('/otp/send',         otpSendLimiter, sendOtp);
+router.post('/otp/verify',       otpVerifyLimiter, verifyOtp);
+router.post('/otp/send-phone',   otpSendLimiter, sendPhoneOtp);
+router.post('/otp/verify-phone', otpVerifyLimiter, verifyPhoneOtp);
+// Social/OAuth callbacks are also protected by the global API limiter.
+router.post('/social',           signInLimiter, socialSignIn);
+router.post('/google/callback',  signInLimiter, googleCallback);
 router.get('/me',                protect, getMe);
 router.post('/signout',          signOut);
 

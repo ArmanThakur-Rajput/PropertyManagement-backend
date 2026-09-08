@@ -31,7 +31,6 @@ const userPayload = (user) => ({
   phone:      user.phone,
   email:      user.email,
   role:       user.role,
-  userType:   user.userType || '',
   department: user.department,
   expertise:  user.expertise || '',
   qualities:  user.qualities || '',
@@ -158,32 +157,8 @@ export const signIn = async (req, res) => {
   }
 };
 
-// ── Rate Limit Store (in-memory) ─────────────────────────────────────────────
-// Per phone: max 3 OTP requests per 10 minutes
-const otpRateLimit = new Map(); // phone → { count, firstRequestAt }
-
-const checkRateLimit = (phone) => {
-  const now      = Date.now();
-  const window   = 10 * 60 * 1000; // 10 minutes
-  const maxRetry = 3;
-
-  const entry = otpRateLimit.get(phone);
-
-  if (!entry || now - entry.firstRequestAt > window) {
-    otpRateLimit.set(phone, { count: 1, firstRequestAt: now });
-    return null; // allowed
-  }
-
-  if (entry.count >= maxRetry) {
-    const retryAfter = Math.ceil((window - (now - entry.firstRequestAt)) / 1000);
-    const mins = Math.ceil(retryAfter / 60);
-    const msg  = mins > 1 ? `${mins} minutes` : `${retryAfter} seconds`;
-    return `Too many OTP requests. Please try again in ${msg}.`;
-  }
-
-  entry.count += 1;
-  return null; // allowed
-};
+// OTP request limiting is handled at the route layer in src/middleware/rateLimiter.js.
+// Keeping it out of the controller avoids duplicate limits and per-process state.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/otp/send
@@ -216,12 +191,6 @@ export const sendOtp = async (req, res) => {
       if (user) {
         return res.status(400).json({ success: false, message: 'An account with this number already exists. Please login instead!' });
       }
-    }
-
-    // Rate limit check
-    const rateLimitError = checkRateLimit(phone);
-    if (rateLimitError) {
-      return res.status(429).json({ success: false, message: rateLimitError });
     }
 
     // 🚧 TEMPORARY: API call off hai — dummy OTP use ho raha hai
@@ -283,7 +252,6 @@ export const verifyOtp = async (req, res) => {
         phone,
         email: resolvedEmail,
         role: 'client',
-        userType: req.body.userType === 'Broker' ? 'Broker' : 'Owner',
       });
       isNew = true;
     } else {

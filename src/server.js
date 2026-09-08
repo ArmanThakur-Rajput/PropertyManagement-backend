@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import helmet from 'helmet';
 import compression from 'compression';
+import { globalApiLimiter } from './middleware/rateLimiter.js';
 import connectDB from './config/db.js';
 
 // ── Route imports ──────────────────────────────────────────────────────────────
@@ -83,6 +84,9 @@ app.get('/', (_req, res) => {
 });
 
 // ── API Routes ─────────────────────────────────────────────────────────────────
+// Light global protection; sensitive/expensive endpoints add stricter route limits.
+app.use('/api', globalApiLimiter);
+
 app.use('/api/auth',           authRoutes);
 app.use('/api/enquiry',        enquiryRoutes);
 app.use('/api/properties',     propertyRoutes);

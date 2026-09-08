@@ -12,18 +12,13 @@ import {
   updateListingFields,
 } from '../controllers/userListingController.js';
 import { protect, adminOnly, managementPlus } from '../middleware/auth.js';
-import rateLimit from 'express-rate-limit';
+import { listingCreateLimiter, listingSubmitLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
-// Rate-limit lead capture to prevent spam (20 per 15 min per IP)
-const leadLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  message: { success: false, message: 'Too many requests. Please try again after 15 minutes.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// Lead capture and listing creation retain their existing 20/15min protection.
+const leadLimiter = listingCreateLimiter;
+
 
 // ── Public / semi-public (no auth required for owner actions) ─────────────────
 // We identify owners by phone number, not JWT, matching the existing auth flow.
@@ -43,7 +38,7 @@ router.get('/my/:phone', getMyListings);
 router.get('/:id', getListingById);
 
 // Owner actions
-router.post('/:id/submit', submitListing);
+router.post('/:id/submit', listingSubmitLimiter, submitListing);
 router.delete('/:id', removeListing);
 
 // ── Admin routes ──────────────────────────────────────────────────────────────
