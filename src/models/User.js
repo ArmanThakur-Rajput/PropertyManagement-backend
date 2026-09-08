@@ -34,6 +34,9 @@ const userSchema = new mongoose.Schema(
     qualities:  { type: String, default: '' },   // Agent qualities / special tags, e.g. "Luxury specialist, Great negotiator"
     avatar:     { type: String, default: '' },   // initials fallback on frontend
 
+    // ── Owner / Broker identity (set during signup) ────────────────────────────
+    userType:   { type: String, enum: ['Owner', 'Broker', ''], default: '' },
+
     // ── User Wishlist ──────────────────────────────────────────────────────────
     wishlist:   [{ type: mongoose.Schema.Types.ObjectId, ref: 'Property' }],
   },

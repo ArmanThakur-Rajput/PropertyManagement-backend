@@ -31,6 +31,7 @@ const userPayload = (user) => ({
   phone:      user.phone,
   email:      user.email,
   role:       user.role,
+  userType:   user.userType || '',
   department: user.department,
   expertise:  user.expertise || '',
   qualities:  user.qualities || '',
@@ -282,6 +283,7 @@ export const verifyOtp = async (req, res) => {
         phone,
         email: resolvedEmail,
         role: 'client',
+        userType: req.body.userType === 'Broker' ? 'Broker' : 'Owner',
       });
       isNew = true;
     } else {
