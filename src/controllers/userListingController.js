@@ -96,7 +96,7 @@ export const captureLead = async (req, res) => {
       propertyType,
       adType,
       city:         city || '',
-      userType:     userType === 'Broker' ? 'Broker' : 'Owner',
+      listingType: userType === 'Broker' ? 'Broker' : 'Owner',
       status:       'draft',
       currentStep:  0,
     });
@@ -143,7 +143,7 @@ export const createListing = async (req, res) => {
       propertyType,
       adType,
       city:        city || '',
-      userType: (listingType || userType) === 'Broker' ? 'Broker' : 'Owner',
+      listingType: (listingType || userType) === 'Broker' ? 'Broker' : 'Owner',
       status:      'draft',
       currentStep: 0,
     });
@@ -533,7 +533,7 @@ export const updateListingStatus = async (req, res) => {
           flatNo: listing.flatNo || '',
           landmark: listing.landmark || '',
           pgName: listing.pgName || '',
-          userType: listing.userType || 'Owner',
+          listingType: listing.listingType || listing.userType || 'Owner',
           leaseDuration: listing.leaseDuration || '',
           lockInPeriod: listing.lockInPeriod || '',
           possessionStatus: listing.possessionStatus || '',

@@ -20,7 +20,8 @@ const userListingSchema = new mongoose.Schema(
     ownerName:  { type: String, required: true, trim: true },
     ownerPhone: { type: String, required: true, trim: true },
     ownerEmail: { type: String, trim: true, lowercase: true, default: '' },
-    userType:   { type: String, enum: ['Owner', 'Broker'], default: 'Owner' },
+    userType:    { type: String, enum: ['Owner', 'Broker'], default: 'Owner' },
+    listingType: { type: String, enum: ['Owner', 'Broker'], default: 'Owner' },
 
     // ── Listing meta ───────────────────────────────────────────────────────────
     propertyType: {
