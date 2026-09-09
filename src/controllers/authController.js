@@ -5,6 +5,7 @@ import Otp from '../models/Otp.js';
 import Enquiry from '../models/Enquiry.js';
 import Property from '../models/Property.js';
 import { sendEmail } from '../utils/mailer.js';
+import { clearCachedUser } from '../middleware/auth.js';
 
 // ── Helper: sign a JWT and set it as httpOnly cookie ──────────────────────────
 const setTokenCookie = (res, userId) => {
@@ -484,7 +485,14 @@ export const updateMyListingType = async (req, res) => {
         message: 'User not found'
       });
     }
+    clearCachedUser(req.user._id.toString());
 
+    return res.status(200).json({
+      success: true,
+      message: 'Listing type saved successfully',
+      user: userPayload(user)
+    });
+    
     return res.status(200).json({
       success: true,
       message: 'Listing type saved successfully',
