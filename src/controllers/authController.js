@@ -460,7 +460,46 @@ export const updateUserRole = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+// User khud apna Owner/Broker type set kar sakta hai
+export const updateMyListingType = async (req, res) => {
+  try {
+    const { listingType } = req.body;
 
+    if (!['Owner', 'Broker'].includes(listingType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid listing type'
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { listingType },
+      { new: true, runValidators: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Listing type saved successfully',
+      user: userPayload(user)
+    });
+
+  } catch (error) {
+    console.error('updateMyListingType error:', error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Could not save listing type'
+    });
+  }
+};
 // ── User Wishlist ─────────────────────────────────────────────────────────────
 export const toggleWishlist = async (req, res) => {
   try {

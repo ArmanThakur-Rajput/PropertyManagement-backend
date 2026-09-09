@@ -7,7 +7,7 @@ import {
 import {
   signIn, getMe, signOut,
   getUserByPhone, getAllUsers,
-  createStaff, updateUserRole, deleteUser,
+  createStaff, updateUserRole, updateMyListingType, deleteUser,
   getWishlist, toggleWishlist,
   sendOtp, verifyOtp, socialSignIn, googleCallback,
   sendPhoneOtp, verifyPhoneOtp,
@@ -39,6 +39,7 @@ router.get('/users',             ...managementPlus, getAllUsers);
 router.get('/user/:phone',       ...managementPlus, getUserByPhone);
 router.post('/staff',            ...adminOnly,      createStaff);
 router.patch('/users/:id/role',  ...adminOnly,      updateUserRole);
+router.patch('/me/listing-type', protect, updateMyListingType);
 router.delete('/users/:id',     ...adminOnly,      deleteUser);
 
 export default router;
