@@ -120,7 +120,8 @@ export const captureLead = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const createListing = async (req, res) => {
   try {
-    const { ownerName, ownerPhone, ownerEmail, propertyType, adType, city, userType } = req.body;
+    const { ownerName, ownerPhone, ownerEmail, propertyType, adType, city, userType, listingType } = req.body;
+    
 
     if (!ownerName || !ownerPhone || !propertyType || !adType) {
       return res.status(400).json({
@@ -142,7 +143,7 @@ export const createListing = async (req, res) => {
       propertyType,
       adType,
       city:        city || '',
-      userType:    userType === 'Broker' ? 'Broker' : 'Owner',
+      userType: (listingType || userType) === 'Broker' ? 'Broker' : 'Owner',
       status:      'draft',
       currentStep: 0,
     });
