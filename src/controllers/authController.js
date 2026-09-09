@@ -24,6 +24,15 @@ const setTokenCookie = (res, userId) => {
   return token;
 };
 
+// ── Map internal DB role → frontend userType ──────────────────────────────────
+// DB roles: 'client', 'agent', 'management', 'admin'
+// Frontend userType: 'user', 'management', 'admin'
+const mapRoleToUserType = (role) => {
+  if (role === 'admin')      return 'admin';
+  if (role === 'management') return 'management';
+  return 'user'; // client, agent, or anything else
+};
+
 // ── Shared user shape returned in every response ──────────────────────────────
 const userPayload = (user) => ({
   id:         user._id,
@@ -31,6 +40,7 @@ const userPayload = (user) => ({
   phone:      user.phone,
   email:      user.email,
   role:       user.role,
+  userType:   mapRoleToUserType(user.role), // 'user' | 'admin' | 'management'
   department: user.department,
   expertise:  user.expertise || '',
   qualities:  user.qualities || '',
@@ -178,6 +188,7 @@ export const sendOtp = async (req, res) => {
     }
 
     // User existence check based on mode
+    // mode: 'auto' — no restrictions, backend handles login/signup automatically
     const user = await User.findOne({ phone });
 
     if (mode === 'login') {
@@ -191,6 +202,10 @@ export const sendOtp = async (req, res) => {
       if (user) {
         return res.status(400).json({ success: false, message: 'An account with this number already exists. Please login instead!' });
       }
+    }
+    // mode === 'auto': no extra checks — OTP sent regardless, verify handles the rest
+    if (mode === 'auto' && user && !user.isActive) {
+      return res.status(403).json({ success: false, message: 'Your account has been deactivated. Please contact support.' });
     }
 
     // 🚧 TEMPORARY: API call off hai — dummy OTP use ho raha hai
@@ -254,6 +269,25 @@ export const verifyOtp = async (req, res) => {
         role: 'client',
       });
       isNew = true;
+    } else if (mode === 'auto') {
+      // Auto mode: find user → login. Not found → create new account automatically.
+      user = await User.findOne({ phone });
+      if (user) {
+        if (!user.isActive) {
+          return res.status(403).json({ success: false, message: 'Account deactivated. Please contact support.' });
+        }
+        // Existing user — login
+      } else {
+        // New user — auto-create account with phone as identifier
+        const resolvedEmail = `${phone}@phone.kinproperty.com`;
+        user = await User.create({
+          name: 'User',           // default name, can be updated later from profile
+          phone,
+          email: resolvedEmail,
+          role: 'client',
+        });
+        isNew = true;
+      }
     } else {
       // Login flow
       user = await User.findOne({ phone });
