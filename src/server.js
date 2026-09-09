@@ -23,7 +23,8 @@ import faqsRoutes          from './routes/faqs.js';
 import advisorsRoutes      from './routes/advisors.js';
 import settingsRoutes      from './routes/settings.js';
 import masterDataRoutes    from './routes/masterData.js';
-
+import notifyErrorRouter from './routes/notifyError.js';
+app.use('/api', notifyErrorRouter);
 const app = express();
 
 Sentry.init({
