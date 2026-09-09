@@ -24,7 +24,7 @@ import advisorsRoutes      from './routes/advisors.js';
 import settingsRoutes      from './routes/settings.js';
 import masterDataRoutes    from './routes/masterData.js';
 import notifyErrorRouter from './routes/notifyError.js';
-app.use('/api', notifyErrorRouter);
+
 const app = express();
 
 Sentry.init({
@@ -101,6 +101,7 @@ app.use('/api/faqs',           faqsRoutes);
 app.use('/api/advisors',       advisorsRoutes);
 app.use('/api/settings',       settingsRoutes);
 app.use('/api/master-data',    masterDataRoutes);
+app.use('/api', notifyErrorRouter);
 
 // ── Health Check ───────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
