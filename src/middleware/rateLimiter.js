@@ -9,7 +9,7 @@ const limiterMessage = (message) => ({
 // stricter for expensive or abuse-prone actions.
 export const globalApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 1000,
   message: limiterMessage('Too many requests. Please try again after 15 minutes.'),
   standardHeaders: true,
   legacyHeaders: false,
