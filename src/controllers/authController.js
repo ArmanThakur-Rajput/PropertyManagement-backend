@@ -39,9 +39,10 @@ const userPayload = (user) => ({
   name:       user.name,
   phone:      user.phone,
   email:      user.email,
-  role:       user.role,
-  userType:   mapRoleToUserType(user.role), // 'user' | 'admin' | 'management'
-  department: user.department,
+  role:        user.role,
+  userType:    mapRoleToUserType(user.role), // 'user' | 'admin' | 'management'
+  listingType: user.listingType || '',       // 'Owner' | 'Broker' | ''
+  department:  user.department,
   expertise:  user.expertise || '',
   qualities:  user.qualities || '',
   isActive:   user.isActive,
@@ -428,8 +429,15 @@ export const createStaff = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const updateUserRole = async (req, res) => {
   try {
-    const { role, department, expertise, qualities, isActive, name, phone, email } = req.body;
+    const { role, department, expertise, qualities, isActive, name, phone, email, listingType } = req.body;
     const update = {};
+    if (listingType !== undefined) {
+      const allowedListingTypes = ['Owner', 'Broker', ''];
+      if (!allowedListingTypes.includes(listingType)) {
+        return res.status(400).json({ success: false, message: 'Invalid listingType' });
+      }
+      update.listingType = listingType;
+    }
     if (role !== undefined) {
       const allowed = ['client', 'agent', 'management', 'admin'];
       if (!allowed.includes(role)) {
