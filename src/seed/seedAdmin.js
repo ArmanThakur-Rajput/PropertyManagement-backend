@@ -26,13 +26,15 @@ async function seed() {
     await mongoose.connect(process.env.MONGO_URI);
     console.log('✅ MongoDB connected');
 
-    const existing = await User.findOne({ role: 'admin' });
-    if (existing) {
-      console.log(`ℹ️  Admin already exists: ${existing.name} (${existing.phone})`);
-    } else {
-      const admin = await User.create(ADMIN);
-      console.log(`🔑 Admin created: ${admin.name} | Phone: ${admin.phone}`);
+    // Purana admin delete karo
+    const deleted = await User.deleteMany({ role: 'admin' });
+    if (deleted.deletedCount > 0) {
+      console.log(`🧹 Deleted ${deleted.deletedCount} old admin(s)`);
     }
+
+    // Naya admin banao
+    const admin = await User.create(ADMIN);
+    console.log(`🔑 Admin created: ${admin.name} | Phone: ${admin.phone}`);
 
     console.log('✅ Done! Login with phone: 7009461912');
 
