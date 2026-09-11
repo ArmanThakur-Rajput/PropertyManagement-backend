@@ -211,8 +211,8 @@ export const sendOtp = async (req, res) => {
     }
 
     // 🚧 TEMPORARY: API call off hai — dummy OTP use ho raha hai
-    //const otp = '123456';
-    const { otp } = await sendApitxtOtp(phone); // production mein uncomment karo
+    const otp = '123456';
+    //const { otp } = await sendApitxtOtp(phone); // production mein uncomment karo
 
     // OTP MongoDB mein store karo (5 min expiry)
     await storeOtp(phone, otp);
