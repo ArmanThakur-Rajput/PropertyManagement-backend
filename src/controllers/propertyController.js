@@ -192,20 +192,55 @@ export const getAllProperties = async (req, res) => {
     }
 
     // ── adType → listingType (frontend sends adType, model stores listingType) ──
-    const resolvedAdType = req.query.adType || listingType;
-    if (resolvedAdType && resolvedAdType !== 'All') {
-      const norm = resolvedAdType.charAt(0).toUpperCase() + resolvedAdType.slice(1).toLowerCase();
-      // Special cases: PG/Hostel, Flatmates casing preserve karo
-      const adTypeMap = {
-        'Pg/hostel': 'PG/Hostel',
-        'Flatmates': 'Flatmates',
-        'Resale':    'Resale',
-        'Rent':      'Rent',
-        'Sale':      'Sale',
-        'Buy':       'Resale',
-      };
-      filter.listingType = adTypeMap[norm] || norm;
-    }
+    // ── adType + listingType filters ───────────────────────────────────────────
+
+// adType filter → checks BOTH adType and legacy listingType
+const resolvedAdType = req.query.adType;
+
+if (resolvedAdType && resolvedAdType !== 'All') {
+  const norm =
+    resolvedAdType.charAt(0).toUpperCase() +
+    resolvedAdType.slice(1).toLowerCase();
+
+  const adTypeMap = {
+    'Pg/hostel': 'PG/Hostel',
+    'Flatmates': 'Flatmates',
+    'Resale': 'Resale',
+    'Rent': 'Rent',
+    'Sale': 'Sale',
+    'Buy': 'Resale',
+  };
+
+  const value = adTypeMap[norm] || norm;
+
+  // New data → adType
+  // Old/legacy data → listingType
+  const adTypeConditions = [
+    { adType: value },
+    { listingType: value },
+  ];
+
+  if (filter.$and) {
+    filter.$and.push({ $or: adTypeConditions });
+  } else {
+    filter.$and = [{ $or: adTypeConditions }];
+  }
+}
+
+// listingType filter → Owner / Broker
+if (listingType && listingType !== 'All') {
+  const normalizedListingType =
+    listingType.charAt(0).toUpperCase() +
+    listingType.slice(1).toLowerCase();
+
+  if (filter.$and) {
+    filter.$and.push({
+      listingType: normalizedListingType,
+    });
+  } else {
+    filter.listingType = normalizedListingType;
+  }
+}
 
     // ── Furnishing — comma-sep multi value support ────────────────────────────
     if (furnishing && furnishing !== 'Any') {
