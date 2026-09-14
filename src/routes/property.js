@@ -7,7 +7,7 @@ import {
   deleteProperty,
   getPropertyCounts,
 } from '../controllers/propertyController.js';
-import { adminOnly } from '../middleware/auth.js';
+import { managementPlus } from '../middleware/auth.js';
 import { cache, invalidateCache } from '../middleware/cache.js';
 
 const router = express.Router();
@@ -27,19 +27,19 @@ router.get('/:id', cache(120), getPropertyById);
 
 router.post(
   '/',
-  ...adminOnly,
+  ...managementPlus,
   (req, res, next) => { invalidateCache('/api/properties'); next(); },
   createProperty
 );
 router.put(
   '/:id',
-  ...adminOnly,
+  ...managementPlus,
   (req, res, next) => { invalidateCache('/api/properties'); next(); },
   updateProperty
 );
 router.delete(
   '/:id',
-  ...adminOnly,
+  ...managementPlus,
   (req, res, next) => { invalidateCache('/api/properties'); next(); },
   deleteProperty
 );
