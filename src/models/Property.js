@@ -62,7 +62,8 @@ const propertySchema = new mongoose.Schema(
     ownerEmail: { type: String, default: '' },
 
     // ── User listing filter fields ─────────────────────────────────────────────
-    listingType:     { type: String, default: '' }, // Rent | Resale | PG/Hostel | Flatmates
+    listingType:     { type: String, default: '' },
+    adType:      { type: String, default: '' }, // Rent | Resale | PG/Hostel | Flatmates
     propertyType:    { type: String, default: '' }, // Residential | Commercial | Plot | Villa
     apartmentType:   { type: String, default: '' },
     commercialPropertyType: { type: String, default: '' },

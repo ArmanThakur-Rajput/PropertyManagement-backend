@@ -493,7 +493,8 @@ export const updateListingStatus = async (req, res) => {
           title,
           type:         mappedType,          // "Apartment" — detail page ke liye
           propertyType: listing.propertyType, // "Residential" — filter ke liye
-          listingType:  mappedListingType,   // ← filter ke liye zaroori
+          listingType:  mappedListingType,
+          adType:       listing.adType || '',   // ← filter ke liye zaroori
           price,
           priceLabel:  listing.price || '',
           location:    listing.locality || listing.city || 'Pune',
