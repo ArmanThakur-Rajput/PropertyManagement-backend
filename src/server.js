@@ -26,6 +26,10 @@ import masterDataRoutes    from './routes/masterData.js';
 import notifyErrorRouter from './routes/notifyError.js';
 
 const app = express();
+app.use((req, res, next) => {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  next();
+});
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
