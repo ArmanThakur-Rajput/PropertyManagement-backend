@@ -78,7 +78,7 @@ const templates = {
 };
 
 // ── POST /api/notify-error ───────────────────────────────────────────────────
-router.post('/notify-error', async (req, res) => {
+router.post('/notify-error', notifyErrorLimiter, async (req, res) => {
   try {
     const { type, ...details } = req.body;
 
