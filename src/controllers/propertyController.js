@@ -22,7 +22,7 @@ const LIST_FIELDS =
 // GET /api/properties  — buyer-facing listing with filters
 // ─────────────────────────────────────────────────────────────────────────────
 export const getAllProperties = async (req, res) => {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  
   try {
     const {
       type,
