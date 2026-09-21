@@ -67,7 +67,7 @@ app.use(
 );
 
 // ── Logging ────────────────────────────────────────────────────────────────────
-app.use(morgan(isProd ? 'combined' : 'dev'));
+//app.use(morgan(isProd ? 'combined' : 'dev'));
 
 // ── CORS ───────────────────────────────────────────────────────────────────────
 app.use(cors({
