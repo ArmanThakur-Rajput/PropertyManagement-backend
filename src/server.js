@@ -26,6 +26,97 @@ import masterDataRoutes    from './routes/masterData.js';
 import notifyErrorRouter from './routes/notifyError.js';
 
 const app = express();
+
+// ==================== LIGHTWEIGHT API METRICS ====================
+
+const metrics = {
+  totalRequests: 0,
+  totalErrors: 0,
+  durations: [],
+};
+
+app.use((req, res, next) => {
+  // Metrics endpoint ko khud metrics mein count mat karo
+  if (req.path === '/api/metrics') {
+    return next();
+  }
+
+  const start = process.hrtime.bigint();
+
+  metrics.totalRequests++;
+
+  res.on('finish', () => {
+    const duration =
+      Number(process.hrtime.bigint() - start) / 1_000_000;
+
+    if (res.statusCode >= 500) {
+      metrics.totalErrors++;
+    }
+
+    metrics.durations.push(duration);
+
+    // Last 5000 requests hi memory mein rakho
+    if (metrics.durations.length > 5000) {
+      metrics.durations.shift();
+    }
+  });
+
+  next();
+});
+
+app.get('/api/metrics', (req, res) => {
+  const durations = [...metrics.durations].sort((a, b) => a - b);
+
+  const percentile = (p) => {
+    if (!durations.length) return 0;
+
+    const index = Math.ceil((p / 100) * durations.length) - 1;
+
+    return Math.round(durations[Math.max(0, index)]);
+  };
+
+  const avg = durations.length
+    ? durations.reduce((sum, value) => sum + value, 0) /
+      durations.length
+    : 0;
+
+  res.json({
+    success: true,
+
+    requests: {
+      total: metrics.totalRequests,
+      errors5xx: metrics.totalErrors,
+    },
+
+    responseTimeMs: {
+      average: Math.round(avg),
+      p50: percentile(50),
+      p95: percentile(95),
+      p99: percentile(99),
+      max: durations.length
+        ? Math.round(durations[durations.length - 1])
+        : 0,
+    },
+
+    sampleSize: durations.length,
+
+    uptimeSeconds: Math.round(process.uptime()),
+
+    memoryMB: {
+      rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
+      heapUsed: Math.round(
+        process.memoryUsage().heapUsed / 1024 / 1024
+      ),
+    },
+
+    timestamp: new Date().toISOString(),
+  });
+});
+
+
+
+
+
 app.use((req, res, next) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
   next();
