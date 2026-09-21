@@ -78,3 +78,11 @@ export const listingSubmitLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+export const notifyErrorLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: limiterMessage('Too many error reports. Please try again later.'),
+  standardHeaders: true,
+  legacyHeaders: false,
+});
