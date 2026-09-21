@@ -2,7 +2,7 @@ import express from 'express';
 import { Resend } from 'resend';
 import ErrorLog from '../models/ErrorLog.js';
 import { adminOnly } from '../middleware/auth.js';
-
+import { notifyErrorLimiter } from '../middleware/rateLimiter.js';
 const router = express.Router();
 const resend = new Resend(process.env.RESEND_API_KEY);
 
