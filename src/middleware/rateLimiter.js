@@ -13,13 +13,8 @@ export const globalApiLimiter = rateLimit({
   message: limiterMessage('Too many requests. Please try again after 15 minutes.'),
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) =>
-  req.path === '/health' ||
-  (
-    process.env.BENCHMARK_MODE === 'true' &&
-    ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.ip)
-  ),
-  //skip: (req) => req.path === '/health',
+
+  skip: (req) => req.path === '/health',
 });
 
 // Authentication has no password flow on the public phone-login endpoint, so
